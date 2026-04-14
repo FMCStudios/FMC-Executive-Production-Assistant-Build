@@ -29,7 +29,7 @@ function extractAfterHeader(text: string, pattern: RegExp): string {
   const startIdx = match.index! + match[0].length;
   const rest = text.slice(startIdx);
   // Take content until the next section header
-  const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()]+:/);
+  const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()\u2014-]+:/);
   const content = nextHeader ? rest.slice(0, nextHeader.index!) : rest;
   return content.trim().split('\n')[0]?.trim() || '';
 }
@@ -39,7 +39,7 @@ function extractSection(text: string, pattern: RegExp): string[] {
   if (!match) return [];
   const startIdx = match.index! + match[0].length;
   const rest = text.slice(startIdx);
-  const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()]+:/);
+  const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()\u2014-]+:/);
   const content = nextHeader ? rest.slice(0, nextHeader.index!) : rest;
   return content
     .split('\n')

@@ -128,10 +128,10 @@ function getTheme(brandId: string): BrandTheme {
 type ParsedSection = { header: string; content: string };
 
 function parseSections(brief: string): ParsedSection[] {
-  const parts = brief.split(/\n(?=[A-Z][A-Z\s&\/()]+:)/g);
+  const parts = brief.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
   return parts
     .map((part) => {
-      const m = part.match(/^([A-Z][A-Z\s&\/()]+):([\s\S]*)/);
+      const m = part.match(/^([A-Z][A-Z\s&\/()\u2014-]+):([\s\S]*)/);
       return m ? { header: m[1].trim(), content: m[2].trim() } : null;
     })
     .filter((s): s is ParsedSection => s !== null && s.content.length > 0);

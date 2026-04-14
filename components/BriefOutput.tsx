@@ -75,10 +75,10 @@ function isNextSteps(h: string) {
 // ── Parsing helpers ────────────────────────────────────────────
 
 function parseSections(brief: string): ParsedSection[] {
-  const parts = brief.split(/\n(?=[A-Z][A-Z\s&\/()]+:)/g);
+  const parts = brief.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
   return parts
     .map((part) => {
-      const m = part.match(/^([A-Z][A-Z\s&\/()]+):([\s\S]*)/);
+      const m = part.match(/^([A-Z][A-Z\s&\/()\u2014-]+):([\s\S]*)/);
       return m ? { header: m[1].trim(), content: m[2].trim() } : null;
     })
     .filter((s): s is ParsedSection => s !== null && s.content.length > 0);
@@ -252,21 +252,33 @@ function formatMarkdown(brief: string, briefTypeName: string): string {
 
     if (/NEXT STEPS|RECOMMENDED NEXT/.test(s.header)) {
       parts.push('---', '', `## ${s.header}`, '');
+      // Group next steps by person
       const stepLines = s.content.split('\n').map(l => l.trim()).filter(Boolean);
-      let stepNum = 1;
-      for (const line of stepLines) {
-        const clean = line.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022]\s*/, '');
-        if (!clean) continue;
-        // Check for owner grouping
-        const ownerMatch = clean.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)(?:\s+to\s+|:\s+|\s*[-\u2014]\s+)(.+)$/);
-        if (ownerMatch) {
-          parts.push(`${stepNum}. **${ownerMatch[1]}** \u2014 ${ownerMatch[2]}`);
-        } else {
-          parts.push(`${stepNum}. ${clean}`);
+      const ownerPatterns = [
+        /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:to|should|will|needs to)\s+(.+)$/,
+        /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?):\s+(.+)$/,
+        /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*[-\u2014]\s+(.+)$/,
+      ];
+      const groups: Map<string, string[]> = new Map();
+      for (const raw of stepLines) {
+        const line = raw.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022\u25A1]\s*/, '');
+        if (!line) continue;
+        let owner = 'General';
+        let action = line;
+        for (const pattern of ownerPatterns) {
+          const m = line.match(pattern);
+          if (m) { owner = m[1]; action = m[2]; break; }
         }
-        stepNum++;
+        if (!groups.has(owner)) groups.set(owner, []);
+        groups.get(owner)!.push(action);
       }
-      parts.push('');
+      Array.from(groups.entries()).forEach(([owner, actions]) => {
+        parts.push(`### ${owner}`, '');
+        for (const action of actions) {
+          parts.push(`- ${action}`);
+        }
+        parts.push('');
+      });
       continue;
     }
 
@@ -438,6 +450,55 @@ function renderGapItems(content: string) {
   return items;
 }
 
+// ── Next steps grouped by person ──────────────────────────────
+
+type GroupedSteps = { owner: string; actions: { text: string; deadline: string | null }[] };
+
+function groupNextSteps(content: string): GroupedSteps[] {
+  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+  const groups: Map<string, { text: string; deadline: string | null }[]> = new Map();
+
+  const ownerPatterns = [
+    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:to|should|will|needs to)\s+(.+)$/,
+    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?):\s+(.+)$/,
+    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*[-\u2014]\s+(.+)$/,
+  ];
+
+  const dateRe = /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|(?:this|next)\s+(?:week|month)|by\s+(?:end\s+of\s+)?\w+(?:\s+\d+)?(?:,?\s+\d{4})?|Q[1-4]\s+\d{4}|\d+\s+(?:hours?|days?|weeks?))\b/i;
+
+  for (const raw of lines) {
+    const line = raw.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022\u25A1]\s*/, '');
+    if (!line) continue;
+
+    let owner = 'GENERAL';
+    let action = line;
+
+    for (const pattern of ownerPatterns) {
+      const m = line.match(pattern);
+      if (m) {
+        owner = m[1].toUpperCase();
+        action = m[2];
+        break;
+      }
+    }
+
+    const deadlineMatch = action.match(dateRe);
+    const deadline = deadlineMatch ? deadlineMatch[1] : null;
+
+    if (!groups.has(owner)) groups.set(owner, []);
+    groups.get(owner)!.push({ text: action, deadline });
+  }
+
+  const result: GroupedSteps[] = [];
+  groups.forEach((actions, owner) => {
+    if (owner !== 'GENERAL') result.push({ owner, actions });
+  });
+  if (groups.has('GENERAL')) {
+    result.push({ owner: 'GENERAL', actions: groups.get('GENERAL')! });
+  }
+  return result;
+}
+
 // ── SCT Card Component ────────────────────────────────────────
 
 function SCTGroup({ label, sections }: { label: string; sections: ParsedSection[] }) {
@@ -478,6 +539,7 @@ export default function BriefOutput({
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [copiedMd, setCopiedMd] = useState(false);
+  const [mdToast, setMdToast] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [pdfError, setPdfError] = useState(false);
 
@@ -506,7 +568,9 @@ export default function BriefOutput({
     try {
       await navigator.clipboard.writeText(formatMarkdown(brief, briefTypeName));
       setCopiedMd(true);
+      setMdToast(true);
       setTimeout(() => setCopiedMd(false), 2000);
+      setTimeout(() => setMdToast(false), 3000);
     } catch {
       setCopiedMd(false);
     }
@@ -714,6 +778,7 @@ export default function BriefOutput({
             }
 
             if (block.kind === 'nextsteps') {
+              const stepGroups = groupNextSteps(block.section.content);
               return (
                 <div
                   key={`ns-${block.index}`}
@@ -725,7 +790,25 @@ export default function BriefOutput({
                       <span className="w-[2px] h-3 bg-fmc-firestarter rounded-full" />
                       {block.section.header}
                     </h3>
-                    <div>{renderContentLines(block.section.content)}</div>
+                    <div className="space-y-5">
+                      {stepGroups.map((group, gi) => (
+                        <div key={gi}>
+                          <span className="label-upper text-fmc-firestarter block mb-2">{group.owner}</span>
+                          <div className="border-l-2 border-fmc-copper pl-4 space-y-1.5">
+                            {group.actions.map((action, ai) => (
+                              <div key={ai} className="flex items-baseline gap-2 text-sm text-white/70 leading-relaxed">
+                                <span>{action.text}</span>
+                                {action.deadline && (
+                                  <span className="inline-flex bg-white/[0.06] rounded-full px-2 py-0.5 text-xs text-fmc-teal whitespace-nowrap">
+                                    {action.deadline}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );
@@ -795,6 +878,16 @@ export default function BriefOutput({
           Generated {timestamp}
         </div>
       </div>
+
+      {/* Markdown copy toast */}
+      {mdToast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-fadeUp">
+          <div className="bg-fmc-carbon border border-white/[0.12] rounded-xl px-4 py-2.5 text-sm text-fmc-offwhite shadow-lg flex items-center gap-2">
+            <span className="text-fmc-teal">{'\u2713'}</span>
+            Copied as Markdown
+          </div>
+        </div>
+      )}
     </div>
   );
 }

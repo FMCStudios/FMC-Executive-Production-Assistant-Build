@@ -36,12 +36,13 @@ Tone Instruction: ${brand.briefToneInstruction}`;
 
     const briefText = await generateBrief(systemPrompt, rawInput);
 
-    const gapsMatch = briefText.match(/GAPS[:\s]*\n([\s\S]*?)(?=\n[A-Z][A-Z\s&\/()]+:|\n---|\n## |$)/i);
+    const gapsMatch = briefText.match(/GAPS[^:\n]*:\s*\n([\s\S]*?)(?=\n[A-Z][A-Z\s&\/()\u2014-]+:|\n---|\n## |$)/i);
     const gaps = gapsMatch
       ? gapsMatch[1]
           .split('\n')
-          .filter((line: string) => line.trim().startsWith('-') || line.trim().startsWith('\u2022'))
-          .map((line: string) => line.replace(/^[\s\-\u2022]+/, '').trim())
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.startsWith('-') || line.startsWith('\u2022') || line.startsWith('\u26A0') || line.startsWith('\u25A1') || line.startsWith('\u2717'))
+          .map((line: string) => line.replace(/^[-\u2022\u26A0\u25A1\u2717]\s*/, '').trim())
           .filter(Boolean)
       : [];
 
