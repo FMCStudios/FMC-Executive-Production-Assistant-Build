@@ -7,7 +7,7 @@ import BriefOutput from './BriefOutput';
 import Toast from './ui/Toast';
 
 export default function BriefGenerator({ briefType }: { briefType: BriefType }) {
-  const { brandId } = useBrand();
+  const { brandId, activeBrand } = useBrand();
   const [input, setInput] = useState('');
   const [brief, setBrief] = useState<string | null>(null);
   const [gaps, setGaps] = useState<string[]>([]);
@@ -76,7 +76,16 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
         </div>
       </div>
 
-      {brief && <BriefOutput brief={brief} gaps={gaps} />}
+      {brief && (
+        <BriefOutput
+          brief={brief}
+          gaps={gaps}
+          brandName={activeBrand.name}
+          brandTagline={activeBrand.tagline}
+          accentColor={activeBrand.accentColor}
+          briefTypeName={briefType.name}
+        />
+      )}
       {error && <Toast message={error} onClose={() => setError(null)} />}
     </div>
   );
