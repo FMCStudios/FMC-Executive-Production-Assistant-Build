@@ -181,6 +181,7 @@ function groupNextSteps(content: string): GroupedSteps[] {
       const m = line.match(pattern);
       if (m) {
         owner = m[1].toUpperCase();
+        if (owner === 'FERGUSON') owner = 'FERG';
         action = m[2];
         break;
       }
@@ -248,8 +249,8 @@ function renderContentHtml(content: string, t: BrandTheme): string {
     const cols = Math.min(kvBlock.length, 3);
     html += `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px 20px;margin-bottom:12px">`;
     for (const kv of kvBlock) {
-      html += `<div>
-        <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${t.textMuted};margin-bottom:3px">${escapeHtml(kv.label)}</div>
+      html += `<div style="background:${t.cardBg};border:1px solid ${t.cardBorder};border-radius:8px;padding:10px 14px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${t.accent};margin-bottom:4px">${escapeHtml(kv.label)}</div>
         <div style="font-size:13px;font-weight:500;color:${t.text}">${escapeHtml(kv.value)}</div>
       </div>`;
     }
@@ -365,7 +366,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
   .no-break { page-break-inside: avoid; }
 }
 </style></head>
-<body style="width:960px;background:${t.bg};color:${t.text};font-family:${t.bodyFont};padding:48px 52px 40px">
+<body style="width:960px;min-height:1056px;display:flex;flex-direction:column;background:${t.bg};color:${t.text};font-family:${t.bodyFont};margin:0;padding:0"><div style="flex:1;padding:48px 52px 0">
 `;
 
   // ── Header ──
@@ -379,8 +380,10 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
     html += `<span style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:${t.textMuted}">${escapeHtml(t.brandLabel)}</span>`;
   } else {
     // Oak & Cider styled text logo
-    html += `<span style="font-family:${t.displayFont};font-size:18px;color:${t.accent}">Oak &amp; Cider</span>`;
-    html += `<span style="font-size:10px;font-weight:700;letter-spacing:0.12em;color:${t.textMuted}">${escapeHtml(t.brandLabel)}</span>`;
+    html += `<div style="display:flex;flex-direction:column;line-height:1">
+      <span style="font-family:${t.displayFont};font-size:18px;color:${t.accent}">Oak &amp; Cider</span>
+      <span style="font-size:10px;font-weight:700;letter-spacing:0.2em;color:${t.textMuted};margin-top:2px">${escapeHtml(t.brandLabel)}</span>
+    </div>`;
   }
   html += `</div>`;
 
@@ -393,7 +396,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
   html += `</div></div>`;
 
   // Eyebrow + Title
-  html += `<div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${t.accent};margin-bottom:8px">BRIEF</div>`;
+  html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:8px">BRIEF</div>`;
   html += `<div style="font-family:${t.displayFont};font-size:${t.titleSize};font-weight:800;text-transform:${t.titleTransform};letter-spacing:${t.titleSpacing};color:${t.text};margin-bottom:6px">${escapeHtml(projectName)}</div>`;
 
   // Subtitle
@@ -432,7 +435,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
   // ── Strategic note ──
   if (noteSection) {
     html += `<div class="no-break" style="margin-top:28px;padding:16px 20px;background:${t.noteBg};border-left:3px solid ${t.noteBorder};border-radius:8px">`;
-    html += `<div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${t.noteBorder};margin-bottom:8px">${escapeHtml(t.labelNote)}</div>`;
+    html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.noteBorder};margin-bottom:8px">${escapeHtml(t.labelNote)}</div>`;
     html += renderContentHtml(noteSection.content, t);
     html += `</div>`;
   }
@@ -442,8 +445,8 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
     const gapLines = gapsSection.content.split('\n').map(l => l.trim()).filter(Boolean)
       .map(l => l.replace(/^[-\u2022\u25A1\u2717\u26A0]\s*/, '').trim()).filter(Boolean);
 
-    html += `<div class="no-break" style="margin-top:28px;padding:16px 20px;background:${t.gapsBg};border-left:3px solid ${t.gapsBorder};border-radius:8px">`;
-    html += `<div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${t.accent};margin-bottom:12px">${escapeHtml(t.labelGaps)}</div>`;
+    html += `<div class="no-break" style="margin-top:28px;padding:16px 20px;background:${t.gapsBg};border-left:4px solid ${t.accent};border-radius:8px">`;
+    html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:12px">${escapeHtml(t.labelGaps)}</div>`;
 
     if (gapLines.length > 0) {
       html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px">`;
@@ -469,10 +472,11 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
 
     for (const group of groups) {
       html += `<div style="margin-bottom:16px">`;
-      html += `<div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${t.accent};margin-bottom:6px">${escapeHtml(group.owner)}</div>`;
+      html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:6px">${escapeHtml(group.owner)}</div>`;
       html += `<div style="border-left:2px solid ${t.secondary};padding-left:14px">`;
       for (const action of group.actions) {
         html += `<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0">`;
+        html += `<span style="color:${addAlpha(t.accent, 0.4)};flex-shrink:0;font-size:12px">\u2192</span>`;
         html += `<span style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight}">${escapeHtml(action.text)}</span>`;
         if (action.deadline) {
           const pillColor = t.tertiary || t.secondary;
@@ -486,12 +490,16 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
   }
 
   // ── Footer ──
+  html += `</div>`; // close content wrapper
+  html += `<div style="padding:0 52px 40px">`;
   html += `<div style="margin-top:40px;padding-top:16px;border-top:1px solid ${t.cardBorder};display:flex;justify-content:space-between;align-items:center">`;
   html += `<span style="font-size:10px;color:${t.textMuted}">Generated by EPA \u00B7 ${escapeHtml(brandName)} \u00B7 ${escapeHtml(date)}</span>`;
   const tagFont = t.footerTaglineFont || t.bodyFont;
   const tagTransform = t.footerTaglineFont ? 'none' : 'uppercase';
-  html += `<span style="font-family:${tagFont};font-size:10px;font-weight:700;text-transform:${tagTransform};color:${t.accent}">${escapeHtml(t.footerTagline)}</span>`;
+  const tagStyle = t.footerTaglineFont ? 'font-style:italic;' : '';
+  html += `<span style="font-family:${tagFont};font-size:10px;font-weight:700;text-transform:${tagTransform};${tagStyle}color:${t.accent}">${escapeHtml(t.footerTagline)}</span>`;
   html += `</div>`;
+  html += `</div>`; // close footer wrapper
 
   html += `</body></html>`;
   return html;
@@ -501,7 +509,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
 
 function sectionLabel(label: string, t: BrandTheme): string {
   return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <span style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${t.accent};white-space:nowrap">${escapeHtml(label)}</span>
+    <span style="font-family:${t.displayFont};font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};white-space:nowrap">${escapeHtml(label)}</span>
     <div style="flex:1;height:1px;background:${t.cardBorder}"></div>
   </div>`;
 }
@@ -518,19 +526,16 @@ function renderSectionBlock(s: ParsedSection, t: BrandTheme): string {
 function renderSCTGroup(groupLabel: string, sections: ParsedSection[], t: BrandTheme): string {
   let html = `<div class="no-break" style="margin-top:28px">`;
   html += sectionLabel(groupLabel, t);
-  html += `<div style="display:flex;gap:0">`;
-  // Vertical accent bar
-  html += `<div style="width:3px;background:${t.secondary};border-radius:2px;flex-shrink:0;margin-right:14px"></div>`;
-  html += `<div style="flex:1;display:flex;flex-direction:column;gap:10px">`;
+  html += `<div style="display:flex;gap:12px">`;
 
   for (const s of sections) {
     const cleanLabel = s.header.replace(/\s*\(SCT\)\s*/i, '');
-    html += `<div style="background:${t.cardBg};border:1px solid ${t.cardBorder};border-radius:10px;padding:14px 18px">`;
-    html += `<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${t.textMuted};margin-bottom:8px">${escapeHtml(cleanLabel)}</div>`;
+    html += `<div style="flex:1;border-left:3px solid ${t.accent};background:${t.cardBg};border-radius:0 8px 8px 0;padding:14px 16px 14px 18px">`;
+    html += `<div style="font-size:9px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.12em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:8px">${escapeHtml(cleanLabel)}</div>`;
     html += renderContentHtml(s.content, t);
     html += `</div>`;
   }
 
-  html += `</div></div></div>`;
+  html += `</div></div>`;
   return html;
 }

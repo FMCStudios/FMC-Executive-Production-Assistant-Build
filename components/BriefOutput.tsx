@@ -420,6 +420,7 @@ function groupNextSteps(content: string): GroupedSteps[] {
       const m = line.match(pattern);
       if (m) {
         owner = m[1].toUpperCase();
+        if (owner === 'FERGUSON') owner = 'FERG';
         action = m[2];
         break;
       }
