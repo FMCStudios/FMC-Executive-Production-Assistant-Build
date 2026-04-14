@@ -574,6 +574,44 @@ export default function BriefOutput({
       // Extra buffer for rendering
       await new Promise(resolve => setTimeout(resolve, 200));
 
+      // ── Page-aware layout: measure sections, prevent mid-section page breaks ──
+      const PAGE_HEIGHT = 1056; // 11in × 96dpi = one letter page in CSS px
+
+      const pdfSections = Array.from(wrapper.querySelectorAll('.pdf-section'));
+      for (const section of pdfSections) {
+        const wrapperTop = wrapper.getBoundingClientRect().top;
+        const rect = section.getBoundingClientRect();
+        const top = rect.top - wrapperTop;
+        const bottom = top + rect.height;
+
+        const topPage = Math.floor(top / PAGE_HEIGHT);
+        const bottomPage = Math.floor(Math.max(0, bottom - 1) / PAGE_HEIGHT);
+
+        // Section crosses a page boundary and can fit on a single page — push to next page
+        if (topPage !== bottomPage && rect.height < PAGE_HEIGHT * 0.9) {
+          const nextPageStart = (topPage + 1) * PAGE_HEIGHT;
+          const spacer = document.createElement('div');
+          spacer.style.height = `${nextPageStart - top}px`;
+          section.parentNode?.insertBefore(spacer, section);
+        }
+      }
+
+      // Pin footer to bottom of its page
+      const footerEl = wrapper.querySelector('.pdf-footer');
+      if (footerEl) {
+        const wrapperTop = wrapper.getBoundingClientRect().top;
+        const fRect = footerEl.getBoundingClientRect();
+        const footerTop = fRect.top - wrapperTop;
+        const footerPage = Math.floor(footerTop / PAGE_HEIGHT);
+        const pageBottom = (footerPage + 1) * PAGE_HEIGHT;
+        const desiredTop = pageBottom - fRect.height - 48;
+        if (desiredTop > footerTop + 20) {
+          const spacer = document.createElement('div');
+          spacer.style.height = `${desiredTop - footerTop}px`;
+          footerEl.parentNode?.insertBefore(spacer, footerEl);
+        }
+      }
+
       const bgColor = brandId === 'tourbus' ? '#F5F0E8'
         : brandId === 'oakandcider' ? '#FAF6F0'
         : '#0D0D0D';
@@ -597,6 +635,7 @@ export default function BriefOutput({
           format: 'letter',
           orientation: 'portrait' as const,
         },
+        pagebreak: { mode: ['avoid-all', 'css'], avoid: '.no-break' },
       }).from(wrapper).save();
 
       document.body.removeChild(container);
