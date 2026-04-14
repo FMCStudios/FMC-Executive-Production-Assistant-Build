@@ -117,6 +117,7 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
           <BriefOutput
             brief={brief}
             gaps={gaps}
+            brandId={brandId}
             brandName={activeBrand.name}
             brandTagline={activeBrand.tagline}
             accentColor={activeBrand.accentColor}

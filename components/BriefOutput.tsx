@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, createElement, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { buildPDFHTML } from './BriefPDFTemplate';
 
 // ── Types ──────────────────────────────────────────────────────
 
 type Props = {
   brief: string;
   gaps: string[];
+  brandId: string;
   brandName: string;
   brandTagline: string;
   accentColor: string;
@@ -228,17 +230,74 @@ function formatPlainText(brief: string): string {
   return brief.replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function formatMarkdown(brief: string): string {
+function formatMarkdown(brief: string, briefTypeName: string): string {
   const sections = parseSections(brief);
-  return sections
-    .map((s) => {
-      const lines = s.content.split('\n').map((l) => {
-        const kv = l.trim().match(/^([A-Z][A-Za-z\s\/&']+?):\s+(.+)$/);
-        return kv && kv[1].length < 35 ? `**${kv[1]}:** ${kv[2]}` : l;
-      });
-      return `## ${s.header}\n${lines.join('\n')}`;
-    })
-    .join('\n\n');
+  const projectSection = sections.find(s => /^PROJECT/.test(s.header));
+  const firstLine = projectSection?.content.split('\n')[0]?.trim() || '';
+  const title = firstLine.replace(/^(?:Name|Project):\s*/i, '').split(/[,\n]/)[0]?.trim() || `${briefTypeName} Brief`;
+
+  const parts: string[] = [`# ${title}`, ''];
+
+  for (const s of sections) {
+    if (/^GAPS/.test(s.header)) {
+      parts.push('---', '', `## ${s.header}`, '');
+      const gapLines = s.content.split('\n').map(l => l.trim()).filter(Boolean);
+      for (const line of gapLines) {
+        const clean = line.replace(/^[-\u2022\u25A1\u2717\u26A0]\s*/, '');
+        parts.push(`- ${clean}`);
+      }
+      parts.push('');
+      continue;
+    }
+
+    if (/NEXT STEPS|RECOMMENDED NEXT/.test(s.header)) {
+      parts.push('---', '', `## ${s.header}`, '');
+      const stepLines = s.content.split('\n').map(l => l.trim()).filter(Boolean);
+      let stepNum = 1;
+      for (const line of stepLines) {
+        const clean = line.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022]\s*/, '');
+        if (!clean) continue;
+        // Check for owner grouping
+        const ownerMatch = clean.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)(?:\s+to\s+|:\s+|\s*[-\u2014]\s+)(.+)$/);
+        if (ownerMatch) {
+          parts.push(`${stepNum}. **${ownerMatch[1]}** \u2014 ${ownerMatch[2]}`);
+        } else {
+          parts.push(`${stepNum}. ${clean}`);
+        }
+        stepNum++;
+      }
+      parts.push('');
+      continue;
+    }
+
+    parts.push(`## ${s.header}`, '');
+    const lines = s.content.split('\n');
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { parts.push(''); continue; }
+
+      // Key-value
+      const kv = line.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
+      if (kv && kv[1].length < 35) {
+        parts.push(`**${kv[1]}:** ${kv[2]}`);
+        continue;
+      }
+      // List item
+      if (/^[-\u2022\u25A1\u2713\u2717\u25AA]\s/.test(line)) {
+        parts.push(`- ${line.replace(/^[-\u2022\u25A1\u2713\u2717\u25AA]\s*/, '')}`);
+        continue;
+      }
+      // Quoted
+      if (/^".*"$/.test(line)) {
+        parts.push(`> ${line.slice(1, -1)}`);
+        continue;
+      }
+      parts.push(line);
+    }
+    parts.push('');
+  }
+
+  return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // ── Content renderers ──────────────────────────────────────────
@@ -410,6 +469,7 @@ function SCTGroup({ label, sections }: { label: string; sections: ParsedSection[
 export default function BriefOutput({
   brief,
   gaps,
+  brandId,
   brandName,
   brandTagline,
   accentColor,
@@ -419,6 +479,7 @@ export default function BriefOutput({
   const [copied, setCopied] = useState(false);
   const [copiedMd, setCopiedMd] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
 
   const sctMode = getSCTMode(briefTypeId);
 
@@ -442,29 +503,109 @@ export default function BriefOutput({
   };
 
   const handleCopyMarkdown = async () => {
-    await navigator.clipboard.writeText(formatMarkdown(brief));
-    setCopiedMd(true);
-    setTimeout(() => setCopiedMd(false), 2000);
+    try {
+      await navigator.clipboard.writeText(formatMarkdown(brief, briefTypeName));
+      setCopiedMd(true);
+      setTimeout(() => setCopiedMd(false), 2000);
+    } catch {
+      setCopiedMd(false);
+    }
   };
 
   const handleDownloadPDF = async () => {
     setGeneratingPDF(true);
+    setPdfError(false);
     try {
-      const { pdf } = await import('@react-pdf/renderer');
-      const { BriefPDF } = await import('./BriefPDF');
-      const doc = createElement(BriefPDF, { brief, brandName, brandTagline, accentColor, briefTypeName });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const blob = await pdf(doc as any).toBlob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const slug = `${brandName.replace(/\s+/g, '-')}_${briefTypeName.replace(/\s+/g, '-')}`;
-      const date = new Date().toISOString().split('T')[0];
-      a.href = url;
-      a.download = `${slug}_${date}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // silent fail — copy still works
+      const html2pdf = (await import('html2pdf.js')).default;
+
+      // Build the branded HTML
+      const htmlContent = buildPDFHTML({
+        brief,
+        brandId,
+        brandName,
+        brandTagline,
+        briefTypeName,
+        briefTypeId,
+      });
+
+      // Parse out just the body content and styles from the full HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, 'text/html');
+      const bodyEl = doc.body;
+      const styleEl = doc.querySelector('style');
+
+      // Create offscreen container
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '960px';
+
+      // Copy styles into the container
+      if (styleEl) {
+        const s = document.createElement('style');
+        s.textContent = styleEl.textContent;
+        container.appendChild(s);
+      }
+
+      // Copy body attributes and content
+      const wrapper = document.createElement('div');
+      wrapper.setAttribute('style', bodyEl.getAttribute('style') || '');
+      wrapper.innerHTML = bodyEl.innerHTML;
+      container.appendChild(wrapper);
+
+      document.body.appendChild(container);
+
+      // Wait for fonts to load
+      await document.fonts.ready;
+
+      // Wait for images to load
+      const images = container.querySelectorAll('img');
+      if (images.length > 0) {
+        await Promise.all(
+          Array.from(images).map(
+            (img) =>
+              new Promise<void>((resolve) => {
+                if (img.complete) return resolve();
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              })
+          )
+        );
+      }
+      // Extra buffer for rendering
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const bgColor = brandId === 'tourbus' ? '#F5F0E8'
+        : brandId === 'oakandcider' ? '#FAF6F0'
+        : '#0D0D0D';
+
+      const slug = brandName.replace(/\s+/g, '-').replace(/&/g, '');
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `${slug}_${briefTypeName.replace(/\s+/g, '-')}_${dateStr}.pdf`;
+
+      await html2pdf().set({
+        margin: 0,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          backgroundColor: bgColor,
+          useCORS: true,
+          logging: false,
+        },
+        jsPDF: {
+          unit: 'in',
+          format: 'letter',
+          orientation: 'portrait' as const,
+        },
+      }).from(wrapper).save();
+
+      document.body.removeChild(container);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      setPdfError(true);
+      setTimeout(() => setPdfError(false), 4000);
     } finally {
       setGeneratingPDF(false);
     }
@@ -501,8 +642,10 @@ export default function BriefOutput({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Building PDF...
+                Generating PDF...
               </>
+            ) : pdfError ? (
+              <span className="text-fmc-firestarter">PDF failed — try Copy Brief</span>
             ) : (
               <>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
