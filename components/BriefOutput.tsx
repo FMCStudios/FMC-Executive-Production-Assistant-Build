@@ -82,6 +82,8 @@ function normalizeBrief(text: string): string {
       const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
       return upper.toUpperCase() === upper ? `${upper}:` : h;
     })
+    // Normalize known section headers to uppercase
+    .replace(/^(Next Steps|Recommended Next Steps|Gaps|Strategic Note)/gim, (m) => m.toUpperCase())
     // **HEADER:** or **HEADER** on its own line → HEADER:
     .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
     // Inline **bold** → plain text
@@ -94,6 +96,8 @@ function normalizeBrief(text: string): string {
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     // Normalize * bullets to - bullets
     .replace(/^\s*\*\s+/gm, '- ')
+    // Strip horizontal rules
+    .replace(/^-{2,}\s*$/gm, '')
     // Clean up excessive newlines
     .replace(/\n{3,}/g, '\n\n');
 }
@@ -533,7 +537,7 @@ export default function BriefOutput({
       container.style.position = 'fixed';
       container.style.left = '-9999px';
       container.style.top = '0';
-      container.style.width = '960px';
+      container.style.width = '816px';
 
       // Copy styles into the container
       if (styleEl) {
