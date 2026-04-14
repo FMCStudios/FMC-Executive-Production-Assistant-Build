@@ -127,11 +127,20 @@ function getTheme(brandId: string): BrandTheme {
 
 type ParsedSection = { header: string; content: string };
 
-/** Normalize markdown-formatted brief text into plain HEADER: format */
+/** Strip all markdown formatting so parsers see plain text */
 function normalizeBrief(text: string): string {
   return text
-    .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
-    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+    .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
+      const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
+      return upper.toUpperCase() === upper ? `${upper}:` : h;
+    })
+    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
+    .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
+    .replace(/__([^_]+?)__/g, '$1')
+    .replace(/(?<=\S)\*([^*\n]+?)\*(?=\S|[.,;:!?])/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*\*\s+/gm, '- ')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 function parseSections(brief: string): ParsedSection[] {
@@ -219,11 +228,42 @@ function renderContentHtml(content: string, t: BrandTheme): string {
   const lines = content.split('\n');
   let html = '';
 
-  for (const raw of lines) {
-    const line = raw.trim();
+  // Detect leading block of consecutive key-value pairs for info grid
+  const kvBlock: { label: string; value: string }[] = [];
+  let kvEndIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) { kvEndIdx = i + 1; continue; }
+    const kv = line.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
+    if (kv && kv[1].length < 35) {
+      kvBlock.push({ label: kv[1], value: kv[2] });
+      kvEndIdx = i + 1;
+    } else {
+      break;
+    }
+  }
+
+  // Render info grid if 2+ consecutive KV pairs
+  if (kvBlock.length >= 2) {
+    const cols = Math.min(kvBlock.length, 3);
+    html += `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px 20px;margin-bottom:12px">`;
+    for (const kv of kvBlock) {
+      html += `<div>
+        <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${t.textMuted};margin-bottom:3px">${escapeHtml(kv.label)}</div>
+        <div style="font-size:13px;font-weight:500;color:${t.text}">${escapeHtml(kv.value)}</div>
+      </div>`;
+    }
+    html += `</div>`;
+  } else {
+    kvEndIdx = 0;
+  }
+
+  // Render remaining lines
+  for (let i = kvEndIdx; i < lines.length; i++) {
+    const line = lines[i].trim();
     if (!line) { html += '<div style="height:6px"></div>'; continue; }
 
-    // Key-value pair
+    // Key-value pair (non-grid, inline)
     const kv = line.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
     if (kv && kv[1].length < 35) {
       html += `<div style="display:flex;gap:8px;align-items:baseline;padding:2px 0">

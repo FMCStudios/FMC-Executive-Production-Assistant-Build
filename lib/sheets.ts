@@ -25,8 +25,16 @@ function getAuth() {
 
 function normalizeBrief(text: string): string {
   return text
-    .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
-    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+    .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
+      const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
+      return upper.toUpperCase() === upper ? `${upper}:` : h;
+    })
+    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
+    .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
+    .replace(/__([^_]+?)__/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*\*\s+/gm, '- ')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 function extractAfterHeader(text: string, pattern: RegExp): string {

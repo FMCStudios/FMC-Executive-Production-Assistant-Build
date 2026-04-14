@@ -74,13 +74,28 @@ function isNextSteps(h: string) {
 
 // ── Parsing helpers ────────────────────────────────────────────
 
-/** Normalize markdown-formatted brief text into plain HEADER: format */
+/** Strip all markdown formatting so parsers see plain text */
 function normalizeBrief(text: string): string {
   return text
     // ## HEADER or ### HEADER → HEADER:
-    .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
-    // **HEADER:** or **HEADER**: or **HEADER** → HEADER:
-    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+    .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
+      const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
+      return upper.toUpperCase() === upper ? `${upper}:` : h;
+    })
+    // **HEADER:** or **HEADER** on its own line → HEADER:
+    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
+    // Inline **bold** → plain text
+    .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
+    // Inline __bold__ → plain text
+    .replace(/__([^_]+?)__/g, '$1')
+    // Inline *italic* → plain text (but not bullet lines starting with * )
+    .replace(/(?<=\S)\*([^*\n]+?)\*(?=\S|[.,;:!?])/g, '$1')
+    // Markdown links [text](url) → text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Normalize * bullets to - bullets
+    .replace(/^\s*\*\s+/gm, '- ')
+    // Clean up excessive newlines
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 function parseSections(brief: string): ParsedSection[] {
@@ -238,88 +253,6 @@ function buildRenderPlan(sections: ParsedSection[], sctMode: SCTMode): RenderBlo
 
 function formatPlainText(brief: string): string {
   return normalizeBrief(brief).replace(/\n{3,}/g, '\n\n').trim();
-}
-
-function formatMarkdown(brief: string, briefTypeName: string): string {
-  const sections = parseSections(brief);
-  const projectSection = sections.find(s => /^PROJECT/.test(s.header));
-  const firstLine = projectSection?.content.split('\n')[0]?.trim() || '';
-  const title = firstLine.replace(/^(?:Name|Project):\s*/i, '').split(/[,\n]/)[0]?.trim() || `${briefTypeName} Brief`;
-
-  const parts: string[] = [`# ${title}`, ''];
-
-  for (const s of sections) {
-    if (/^GAPS/.test(s.header)) {
-      parts.push('---', '', `## ${s.header}`, '');
-      const gapLines = s.content.split('\n').map(l => l.trim()).filter(Boolean);
-      for (const line of gapLines) {
-        const clean = line.replace(/^[-\u2022\u25A1\u2717\u26A0]\s*/, '');
-        parts.push(`- ${clean}`);
-      }
-      parts.push('');
-      continue;
-    }
-
-    if (/NEXT STEPS|RECOMMENDED NEXT/.test(s.header)) {
-      parts.push('---', '', `## ${s.header}`, '');
-      // Group next steps by person
-      const stepLines = s.content.split('\n').map(l => l.trim()).filter(Boolean);
-      const ownerPatterns = [
-        /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:to|should|will|needs to)\s+(.+)$/,
-        /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?):\s+(.+)$/,
-        /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*[-\u2014]\s+(.+)$/,
-      ];
-      const groups: Map<string, string[]> = new Map();
-      for (const raw of stepLines) {
-        const line = raw.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022\u25A1]\s*/, '');
-        if (!line) continue;
-        let owner = 'General';
-        let action = line;
-        for (const pattern of ownerPatterns) {
-          const m = line.match(pattern);
-          if (m) { owner = m[1]; action = m[2]; break; }
-        }
-        if (!groups.has(owner)) groups.set(owner, []);
-        groups.get(owner)!.push(action);
-      }
-      Array.from(groups.entries()).forEach(([owner, actions]) => {
-        parts.push(`### ${owner}`, '');
-        for (const action of actions) {
-          parts.push(`- ${action}`);
-        }
-        parts.push('');
-      });
-      continue;
-    }
-
-    parts.push(`## ${s.header}`, '');
-    const lines = s.content.split('\n');
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line) { parts.push(''); continue; }
-
-      // Key-value
-      const kv = line.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
-      if (kv && kv[1].length < 35) {
-        parts.push(`**${kv[1]}:** ${kv[2]}`);
-        continue;
-      }
-      // List item
-      if (/^[-\u2022\u25A1\u2713\u2717\u25AA]\s/.test(line)) {
-        parts.push(`- ${line.replace(/^[-\u2022\u25A1\u2713\u2717\u25AA]\s*/, '')}`);
-        continue;
-      }
-      // Quoted
-      if (/^".*"$/.test(line)) {
-        parts.push(`> ${line.slice(1, -1)}`);
-        continue;
-      }
-      parts.push(line);
-    }
-    parts.push('');
-  }
-
-  return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // ── Content renderers ──────────────────────────────────────────
@@ -548,8 +481,6 @@ export default function BriefOutput({
   briefTypeId,
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const [copiedMd, setCopiedMd] = useState(false);
-  const [mdToast, setMdToast] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [pdfError, setPdfError] = useState(false);
 
@@ -572,18 +503,6 @@ export default function BriefOutput({
     await navigator.clipboard.writeText(formatPlainText(brief));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleCopyMarkdown = async () => {
-    try {
-      await navigator.clipboard.writeText(formatMarkdown(brief, briefTypeName));
-      setCopiedMd(true);
-      setMdToast(true);
-      setTimeout(() => setCopiedMd(false), 2000);
-      setTimeout(() => setMdToast(false), 3000);
-    } catch {
-      setCopiedMd(false);
-    }
   };
 
   const handleDownloadPDF = async () => {
@@ -704,10 +623,6 @@ export default function BriefOutput({
               <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
             </svg>
             {copied ? 'Copied' : 'Copy Brief'}
-          </button>
-          <button onClick={handleCopyMarkdown} className="btn-ghost px-3 py-1.5 text-[11px] flex items-center gap-1.5 text-white/50">
-            <span>MD</span>
-            {copiedMd ? 'Copied' : 'Markdown'}
           </button>
           <button onClick={handleDownloadPDF} disabled={generatingPDF} className="btn-ghost px-4 py-2 text-xs flex items-center gap-2">
             {generatingPDF ? (
@@ -889,15 +804,6 @@ export default function BriefOutput({
         </div>
       </div>
 
-      {/* Markdown copy toast */}
-      {mdToast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-fadeUp">
-          <div className="bg-fmc-carbon border border-white/[0.12] rounded-xl px-4 py-2.5 text-sm text-fmc-offwhite shadow-lg flex items-center gap-2">
-            <span className="text-fmc-teal">{'\u2713'}</span>
-            Copied as Markdown
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -36,10 +36,18 @@ Tone Instruction: ${brand.briefToneInstruction}`;
 
     const briefText = await generateBrief(systemPrompt, rawInput);
 
-    // Normalize markdown headers (## HEADER, **HEADER:**) into plain HEADER: format
+    // Strip all markdown formatting before parsing
     const normalizedText = briefText
-      .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
-      .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+      .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
+        const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
+        return upper.toUpperCase() === upper ? `${upper}:` : h;
+      })
+      .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
+      .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
+      .replace(/__([^_]+?)__/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/^\s*\*\s+/gm, '- ')
+      .replace(/\n{3,}/g, '\n\n');
 
     const gapsMatch = normalizedText.match(/GAPS[^:\n]*:\s*\n([\s\S]*?)(?=\n[A-Z][A-Z\s&\/()\u2014-]+:|\n---|\n## |$)/i);
     const gaps = gapsMatch
