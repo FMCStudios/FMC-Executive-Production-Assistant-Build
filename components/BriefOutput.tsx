@@ -11,6 +11,7 @@ type Props = {
   brandTagline: string;
   accentColor: string;
   briefTypeName: string;
+  briefTypeId: string;
 };
 
 type ParsedSection = {
@@ -18,11 +19,56 @@ type ParsedSection = {
   content: string;
 };
 
+type SCTMode = 'client-narrative' | 'brand-sct' | 'dual' | 'none';
+
 type RenderBlock =
   | { kind: 'section'; section: ParsedSection; index: number }
-  | { kind: 'sct'; sections: ParsedSection[]; index: number }
+  | { kind: 'sct-group'; label: string; sections: ParsedSection[]; index: number }
   | { kind: 'gaps'; section: ParsedSection; index: number }
   | { kind: 'nextsteps'; section: ParsedSection; index: number };
+
+// ── SCT logic ─────────────────────────────────────────────────
+
+function getSCTMode(briefTypeId: string): SCTMode {
+  switch (briefTypeId) {
+    case 'lead-intake':
+    case 'discovery':
+      return 'client-narrative';
+    case 'production':
+    case 'post-production':
+      return 'brand-sct';
+    case 'wrap-retention':
+      return 'dual';
+    case 'archive':
+    default:
+      return 'none';
+  }
+}
+
+const CLIENT_NARRATIVE_HEADERS = ['SITUATION', 'CHALLENGE', 'TRANSFORMATION'];
+const BRAND_SCT_HEADERS = ['STRATEGY', 'CREATIVE', 'TACTIC'];
+const ALL_SCT_HEADERS = [...CLIENT_NARRATIVE_HEADERS, ...BRAND_SCT_HEADERS];
+
+function isSCTHeader(h: string) {
+  const clean = h.replace(/\s*\(SCT\)\s*/i, '').trim();
+  return ALL_SCT_HEADERS.includes(clean);
+}
+
+function isDeliveryReflection(h: string) {
+  return /DELIVERY REFLECTION/i.test(h);
+}
+
+function isRebookingFraming(h: string) {
+  return /REBOOKING FRAMING/i.test(h);
+}
+
+function isGaps(h: string) {
+  return /^GAPS/.test(h);
+}
+
+function isNextSteps(h: string) {
+  return /NEXT STEPS|RECOMMENDED NEXT/.test(h);
+}
 
 // ── Parsing helpers ────────────────────────────────────────────
 
@@ -36,34 +82,117 @@ function parseSections(brief: string): ParsedSection[] {
     .filter((s): s is ParsedSection => s !== null && s.content.length > 0);
 }
 
-function isSCT(h: string) {
-  return /\bSCT\b|^SITUATION$|^CHALLENGE$|^TRANSFORMATION$/.test(h);
-}
-function isGaps(h: string) {
-  return /^GAPS/.test(h);
-}
-function isNextSteps(h: string) {
-  return /NEXT STEPS|RECOMMENDED NEXT/.test(h);
-}
-
-function buildRenderPlan(sections: ParsedSection[]): RenderBlock[] {
+function buildRenderPlan(sections: ParsedSection[], sctMode: SCTMode): RenderBlock[] {
   const plan: RenderBlock[] = [];
-  let sctBuf: ParsedSection[] = [];
   let idx = 0;
 
-  const flushSCT = () => {
-    if (sctBuf.length > 0) {
-      plan.push({ kind: 'sct', sections: [...sctBuf], index: idx++ });
-      sctBuf = [];
+  if (sctMode === 'none') {
+    for (const s of sections) {
+      if (isSCTHeader(s.header)) continue;
+      if (isGaps(s.header)) {
+        plan.push({ kind: 'gaps', section: s, index: idx++ });
+      } else if (isNextSteps(s.header)) {
+        plan.push({ kind: 'nextsteps', section: s, index: idx++ });
+      } else {
+        plan.push({ kind: 'section', section: s, index: idx++ });
+      }
     }
-  };
+    return plan;
+  }
+
+  if (sctMode === 'dual') {
+    // For wrap & retention: collect brand SCT and client narrative separately
+    const brandBuf: ParsedSection[] = [];
+    const clientBuf: ParsedSection[] = [];
+    const others: ParsedSection[] = [];
+    let inDelivery = false;
+    let inRebooking = false;
+
+    for (const s of sections) {
+      const clean = s.header.replace(/\s*\(SCT\)\s*/i, '').trim();
+
+      if (isDeliveryReflection(s.header)) {
+        inDelivery = true;
+        inRebooking = false;
+        continue;
+      }
+      if (isRebookingFraming(s.header)) {
+        inRebooking = true;
+        inDelivery = false;
+        continue;
+      }
+
+      if (BRAND_SCT_HEADERS.includes(clean)) {
+        brandBuf.push(s);
+        continue;
+      }
+      if (CLIENT_NARRATIVE_HEADERS.includes(clean)) {
+        clientBuf.push(s);
+        continue;
+      }
+
+      inDelivery = false;
+      inRebooking = false;
+
+      if (isGaps(s.header)) {
+        others.push(s);
+      } else if (isNextSteps(s.header)) {
+        others.push(s);
+      } else {
+        others.push(s);
+      }
+    }
+
+    // Render non-SCT sections first (PROJECT, CLIENT FEEDBACK, etc)
+    const regularSections = others.filter(s => !isGaps(s.header) && !isNextSteps(s.header));
+    const gapsSections = others.filter(s => isGaps(s.header));
+    const nextStepsSections = others.filter(s => isNextSteps(s.header));
+
+    for (const s of regularSections) {
+      plan.push({ kind: 'section', section: s, index: idx++ });
+    }
+
+    // Brand SCT group
+    if (brandBuf.length > 0) {
+      plan.push({ kind: 'sct-group', label: 'DELIVERY REFLECTION', sections: brandBuf, index: idx++ });
+    }
+
+    // Client narrative group
+    if (clientBuf.length > 0) {
+      plan.push({ kind: 'sct-group', label: 'REBOOKING FRAMING', sections: clientBuf, index: idx++ });
+    }
+
+    // Gaps and next steps at end
+    for (const s of gapsSections) {
+      plan.push({ kind: 'gaps', section: s, index: idx++ });
+    }
+    for (const s of nextStepsSections) {
+      plan.push({ kind: 'nextsteps', section: s, index: idx++ });
+    }
+
+    return plan;
+  }
+
+  // Single SCT mode (client-narrative or brand-sct)
+  const sctBuf: ParsedSection[] = [];
+  const nonSCTBefore: ParsedSection[] = [];
+  const nonSCTAfter: ParsedSection[] = [];
+  let foundSCT = false;
 
   for (const s of sections) {
-    if (isSCT(s.header)) {
+    const clean = s.header.replace(/\s*\(SCT\)\s*/i, '').trim();
+    if (ALL_SCT_HEADERS.includes(clean)) {
       sctBuf.push(s);
-      continue;
+      foundSCT = true;
+    } else if (!foundSCT) {
+      nonSCTBefore.push(s);
+    } else {
+      nonSCTAfter.push(s);
     }
-    flushSCT();
+  }
+
+  // Sections before SCT
+  for (const s of nonSCTBefore) {
     if (isGaps(s.header)) {
       plan.push({ kind: 'gaps', section: s, index: idx++ });
     } else if (isNextSteps(s.header)) {
@@ -72,7 +201,24 @@ function buildRenderPlan(sections: ParsedSection[]): RenderBlock[] {
       plan.push({ kind: 'section', section: s, index: idx++ });
     }
   }
-  flushSCT();
+
+  // SCT group
+  if (sctBuf.length > 0) {
+    const label = sctMode === 'client-narrative' ? 'CLIENT NARRATIVE' : 'EXECUTION FRAMEWORK';
+    plan.push({ kind: 'sct-group', label, sections: sctBuf, index: idx++ });
+  }
+
+  // Sections after SCT
+  for (const s of nonSCTAfter) {
+    if (isGaps(s.header)) {
+      plan.push({ kind: 'gaps', section: s, index: idx++ });
+    } else if (isNextSteps(s.header)) {
+      plan.push({ kind: 'nextsteps', section: s, index: idx++ });
+    } else {
+      plan.push({ kind: 'section', section: s, index: idx++ });
+    }
+  }
+
   return plan;
 }
 
@@ -186,12 +332,7 @@ function renderNextStepItem(item: { num: string; text: string }, i: number) {
   const ownerMatch = item.text.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+to\s+(.+)$/);
   const dateRe = /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|(?:this|next)\s+(?:week|month)|by\s+(?:end\s+of\s+)?\w+(?:\s+\d+)?(?:,?\s+\d{4})?|Q[1-4]\s+\d{4})\b/i;
 
-  let mainText = item.text;
-  let datePill: string | null = null;
-  const dateMatch = mainText.match(dateRe);
-  if (dateMatch) {
-    datePill = dateMatch[1];
-  }
+  const datePill = item.text.match(dateRe)?.[1] ?? null;
 
   return (
     <li key={i} className="flex items-start gap-3 text-sm">
@@ -206,7 +347,7 @@ function renderNextStepItem(item: { num: string; text: string }, i: number) {
             {ownerMatch[2]}
           </>
         ) : (
-          mainText
+          item.text
         )}
         {datePill && (
           <span className="inline-flex ml-2 bg-white/[0.06] rounded-full px-2 py-0.5 text-xs text-fmc-teal align-middle">
@@ -238,6 +379,32 @@ function renderGapItems(content: string) {
   return items;
 }
 
+// ── SCT Card Component ────────────────────────────────────────
+
+function SCTGroup({ label, sections }: { label: string; sections: ParsedSection[] }) {
+  return (
+    <div>
+      <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-fmc-copper" />
+        {label}
+      </h3>
+      <div className="border-l-2 border-fmc-copper pl-4 space-y-3">
+        {sections.map((s, si) => {
+          const cleanLabel = s.header.replace(/\s*\(SCT\)\s*/i, '');
+          return (
+            <div key={si} className="bg-white/[0.03] rounded-xl p-4">
+              <span className="label-upper text-white/50 block mb-2">{cleanLabel}</span>
+              <div className="text-sm text-white/80 leading-relaxed">
+                {renderContentLines(s.content)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────
 
 export default function BriefOutput({
@@ -247,15 +414,18 @@ export default function BriefOutput({
   brandTagline,
   accentColor,
   briefTypeName,
+  briefTypeId,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [copiedMd, setCopiedMd] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
 
+  const sctMode = getSCTMode(briefTypeId);
+
   const renderPlan = useMemo(() => {
     const sections = parseSections(brief);
-    return buildRenderPlan(sections);
-  }, [brief]);
+    return buildRenderPlan(sections, sctMode);
+  }, [brief, sctMode]);
 
   const hasGapsSection = renderPlan.some((b) => b.kind === 'gaps');
   const timestamp = useMemo(
@@ -310,7 +480,7 @@ export default function BriefOutput({
         style={{ background: 'linear-gradient(to right, #E03413, #B45F34, transparent)' }}
       />
 
-      <div className="p-6 md:p-8">
+      <div className="p-4 md:p-6 lg:p-8">
         {/* Action bar */}
         <div className="flex flex-wrap items-center justify-end gap-2 mb-6 pb-4 border-b border-white/[0.06]">
           <button onClick={handleCopy} className="btn-ghost px-4 py-2 text-xs flex items-center gap-2">
@@ -351,7 +521,7 @@ export default function BriefOutput({
           {renderPlan.map((block) => {
             const delay = `${block.index * 60}ms`;
 
-            if (block.kind === 'sct') {
+            if (block.kind === 'sct-group') {
               return (
                 <div
                   key={`sct-${block.index}`}
@@ -359,21 +529,7 @@ export default function BriefOutput({
                   style={{ animationDelay: delay }}
                 >
                   <div className="border-t border-white/[0.06] pt-5 first:border-t-0 first:pt-0">
-                    <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-fmc-copper" />
-                      SCT NARRATIVE
-                    </h3>
-                    <div className="border-l-2 border-fmc-copper pl-4 space-y-3">
-                      {block.sections.map((s, si) => {
-                        const label = s.header.replace(/\s*\(SCT\)\s*/i, '');
-                        return (
-                          <div key={si} className="bg-white/[0.03] rounded-xl p-4">
-                            <span className="label-upper text-white/50 block mb-2">{label}</span>
-                            <p className="text-sm text-white/80 leading-relaxed">{s.content}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <SCTGroup label={block.label} sections={block.sections} />
                   </div>
                 </div>
               );
