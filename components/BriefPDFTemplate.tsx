@@ -127,8 +127,16 @@ function getTheme(brandId: string): BrandTheme {
 
 type ParsedSection = { header: string; content: string };
 
+/** Normalize markdown-formatted brief text into plain HEADER: format */
+function normalizeBrief(text: string): string {
+  return text
+    .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
+    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+}
+
 function parseSections(brief: string): ParsedSection[] {
-  const parts = brief.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
+  const normalized = normalizeBrief(brief);
+  const parts = normalized.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
   return parts
     .map((part) => {
       const m = part.match(/^([A-Z][A-Z\s&\/()\u2014-]+):([\s\S]*)/);
@@ -327,7 +335,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
   // Logo + brand label
   html += `<div style="display:flex;align-items:center;gap:10px">`;
   if (t.logoSrc) {
-    html += `<img src="${t.logoSrc}" height="${t.logoHeight}" style="display:block" crossorigin="anonymous" />`;
+    html += `<img src="${t.logoSrc}" style="display:block;height:${t.logoHeight}px;max-height:${t.logoHeight}px;width:auto" crossorigin="anonymous" />`;
     html += `<span style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:${t.textMuted}">${escapeHtml(t.brandLabel)}</span>`;
   } else {
     // Oak & Cider styled text logo

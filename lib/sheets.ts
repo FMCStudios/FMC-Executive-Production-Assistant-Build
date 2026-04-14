@@ -23,11 +23,18 @@ function getAuth() {
 
 // ── Field extraction ──────────────────────────────────────────
 
+function normalizeBrief(text: string): string {
+  return text
+    .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
+    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+}
+
 function extractAfterHeader(text: string, pattern: RegExp): string {
-  const match = text.match(pattern);
+  const normalized = normalizeBrief(text);
+  const match = normalized.match(pattern);
   if (!match) return '';
   const startIdx = match.index! + match[0].length;
-  const rest = text.slice(startIdx);
+  const rest = normalized.slice(startIdx);
   // Take content until the next section header
   const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()\u2014-]+:/);
   const content = nextHeader ? rest.slice(0, nextHeader.index!) : rest;
@@ -35,10 +42,11 @@ function extractAfterHeader(text: string, pattern: RegExp): string {
 }
 
 function extractSection(text: string, pattern: RegExp): string[] {
-  const match = text.match(pattern);
+  const normalized = normalizeBrief(text);
+  const match = normalized.match(pattern);
   if (!match) return [];
   const startIdx = match.index! + match[0].length;
-  const rest = text.slice(startIdx);
+  const rest = normalized.slice(startIdx);
   const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()\u2014-]+:/);
   const content = nextHeader ? rest.slice(0, nextHeader.index!) : rest;
   return content

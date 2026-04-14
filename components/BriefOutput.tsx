@@ -74,8 +74,18 @@ function isNextSteps(h: string) {
 
 // ── Parsing helpers ────────────────────────────────────────────
 
+/** Normalize markdown-formatted brief text into plain HEADER: format */
+function normalizeBrief(text: string): string {
+  return text
+    // ## HEADER or ### HEADER → HEADER:
+    .replace(/^#{1,4}\s+([A-Z][A-Z\s&\/()\u2014-]+?)\s*:?\s*$/gm, '$1:')
+    // **HEADER:** or **HEADER**: or **HEADER** → HEADER:
+    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:');
+}
+
 function parseSections(brief: string): ParsedSection[] {
-  const parts = brief.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
+  const normalized = normalizeBrief(brief);
+  const parts = normalized.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
   return parts
     .map((part) => {
       const m = part.match(/^([A-Z][A-Z\s&\/()\u2014-]+):([\s\S]*)/);
@@ -227,7 +237,7 @@ function buildRenderPlan(sections: ParsedSection[], sctMode: SCTMode): RenderBlo
 // ── Copy formatting ────────────────────────────────────────────
 
 function formatPlainText(brief: string): string {
-  return brief.replace(/\n{3,}/g, '\n\n').trim();
+  return normalizeBrief(brief).replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function formatMarkdown(brief: string, briefTypeName: string): string {
