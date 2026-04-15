@@ -42,6 +42,10 @@
   border-color: rgba(255, 255, 255, 0.06);
 }
 
+html {
+  background: #0D0D0D;
+}
+
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="number"] { -moz-appearance: textfield; }
@@ -53,7 +57,7 @@ body {
     radial-gradient(ellipse 50% 30% at 80% 90%, rgba(224,52,19,0.08) 0%, transparent 50%),
     #0D0D0D;
   background-attachment: fixed;
-  color: var(--fmc-offwhite);
+  color: #F0EBE1;
   font-family: "Avenir Next", "Avenir", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   min-height: 100vh;
 }
