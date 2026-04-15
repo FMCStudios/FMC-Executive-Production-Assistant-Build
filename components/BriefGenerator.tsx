@@ -6,6 +6,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
 import IntakeForm from './IntakeForm';
+import DiscoveryForm from './DiscoveryForm';
 import ProductionForm from './ProductionForm';
 import PostProductionForm from './PostProductionForm';
 import Toast from './ui/Toast';
@@ -15,6 +16,7 @@ type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
   const { operatorId } = useOperator();
   const isIntake = briefType.id === 'lead-intake';
+  const isDiscovery = briefType.id === 'discovery';
   const isProduction = briefType.id === 'production';
   const isPostProduction = briefType.id === 'post-production';
   const [input, setInput] = useState('');
@@ -93,6 +95,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
       <div className={`glass-panel p-6 ${loading ? 'animate-pulse' : ''}`}>
         {isIntake ? (
           <IntakeForm onInputChange={handleFormChange} disabled={loading} />
+        ) : isDiscovery ? (
+          <DiscoveryForm onInputChange={handleFormChange} disabled={loading} />
         ) : isProduction ? (
           <ProductionForm onInputChange={handleFormChange} disabled={loading} />
         ) : isPostProduction ? (
