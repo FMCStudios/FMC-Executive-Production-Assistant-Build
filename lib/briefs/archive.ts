@@ -1,44 +1,55 @@
-import type { BriefType } from './index';
+import type { BriefTypeConfig } from '@/types/brief-schema';
 
-export const archive: BriefType = {
+export const archive: BriefTypeConfig = {
   id: 'archive',
   name: 'Archive',
   emoji: '\uD83D\uDCE6',
   description: 'Create a storage action plan for project close-out',
-  placeholder: 'Paste project close-out information \u2014 what was delivered, where files live, what needs to be kept or deleted. Include drive locations, file sizes, and client storage preferences.',
-  systemPrompt: `You are creating a project archive and storage action plan. The input is project close-out information \u2014 what was delivered, where files live, what needs to be kept or deleted.
+  placeholder: 'Paste project close-out information — what was delivered, where files live, what needs to be kept or deleted. Include drive locations, file sizes, and client storage preferences.',
+  sctMode: 'none',
+  systemPrompt: `You are creating a project archive and storage action plan. The input is project close-out information — what was delivered, where files live, what needs to be kept or deleted.
 
-Extract and structure:
-- PROJECT: Name, client, completion date
-- FINAL DELIVERABLES: List of delivered files with specs (format, resolution)
-- CONSOLIDATION CHECKLIST:
-  \u25A1 Master project file (.prproj / .fcpx / DaVinci) \u2014 location
-  \u25A1 Final exports \u2014 location
-  \u25A1 Selected stills \u2014 location
-  \u25A1 Raw footage \u2014 total size, drive location
-  \u25A1 Audio files \u2014 location
-- DELETE LIST:
-  \u25A1 Proxy media
-  \u25A1 Render cache files
-  \u25A1 Duplicate exports / draft versions
-  \u25A1 Scratch disks / temp files
-  \u25A1 Old project file versions
-- CLIENT OFFLOAD:
-  \u25A1 Does the client want raw footage? (Y/N)
-  \u25A1 Are they paying for storage/transfer? (Y/N, rate if applicable)
-  \u25A1 Transfer method (hard drive ship, cloud upload, client drive)
-  \u25A1 Transfer deadline
-- COLD STORAGE:
-  \u25A1 Archive drive label/name
-  \u25A1 Folder structure on archive drive
-  \u25A1 Retrieval notes (what someone would need to find this in 2 years)
-- CONFIRMATION:
-  \u25A1 All deliverables confirmed received by client
-  \u25A1 Project folder cleaned
-  \u25A1 Archive drive updated
-  \u25A1 Project marked complete
+CONTEXT KEY-VALUES TO EXTRACT:
+- Project name
+- Client
+- Completion date
+- Total project size (estimated)
+- Archive drive label/name
 
-This should read like a checklist, not a narrative. Clear, actionable, binary.
+SECTIONS TO GENERATE:
+- "Final Deliverables" — list of delivered files with specs (format, resolution). Use "items" format.
+- "Consolidation Checklist" — use "checklist" format with these items:
+  - Master project file (.prproj / .fcpx / DaVinci) — include location
+  - Final exports — include location
+  - Selected stills — include location
+  - Raw footage — include total size and drive location
+  - Audio files — include location
+- "Delete List" — use "checklist" format with these items:
+  - Proxy media
+  - Render cache files
+  - Duplicate exports / draft versions
+  - Scratch disks / temp files
+  - Old project file versions
+- "Client Offload" — use "keyValues" format:
+  - Does the client want raw footage? (Y/N)
+  - Are they paying for storage/transfer? (Y/N, rate if applicable)
+  - Transfer method (hard drive ship, cloud upload, client drive)
+  - Transfer deadline
+- "Cold Storage" — use "keyValues" format:
+  - Archive drive label/name
+  - Folder structure on archive drive
+  - Retrieval notes (what someone would need to find this in 2 years)
+- "Confirmation" — use "checklist" format:
+  - All deliverables confirmed received by client
+  - Project folder cleaned
+  - Archive drive updated
+  - Project marked complete
 
-The brand context below shapes the tone and service framing of your output.`,
+Do NOT generate SCT blocks for archive briefs.
+
+GAPS: Anything missing from the close-out. Assign severity.
+
+NEXT STEPS: Who needs to do what to finalize the archive.
+
+This should read like a checklist, not a narrative. Clear, actionable, binary.`,
 };

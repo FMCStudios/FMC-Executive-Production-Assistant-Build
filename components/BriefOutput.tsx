@@ -2,513 +2,99 @@
 
 import { useState, useMemo } from 'react';
 import { buildPDFHTML } from './BriefPDFTemplate';
+import type { BriefSchema, SCTMode } from '@/types/brief-schema';
 
 // ── Types ──────────────────────────────────────────────────────
 
 type Props = {
-  brief: string;
-  gaps: string[];
+  data: BriefSchema;
   brandId: string;
   brandName: string;
   brandTagline: string;
   accentColor: string;
   briefTypeName: string;
-  briefTypeId: string;
+  sctMode: SCTMode;
 };
-
-type ParsedSection = {
-  header: string;
-  content: string;
-};
-
-type SCTMode = 'client-narrative' | 'brand-sct' | 'dual' | 'none';
-
-type RenderBlock =
-  | { kind: 'section'; section: ParsedSection; index: number }
-  | { kind: 'sct-group'; label: string; sections: ParsedSection[]; index: number }
-  | { kind: 'gaps'; section: ParsedSection; index: number }
-  | { kind: 'nextsteps'; section: ParsedSection; index: number };
-
-// ── SCT logic ─────────────────────────────────────────────────
-
-function getSCTMode(briefTypeId: string): SCTMode {
-  switch (briefTypeId) {
-    case 'lead-intake':
-    case 'discovery':
-      return 'client-narrative';
-    case 'production':
-    case 'post-production':
-      return 'brand-sct';
-    case 'wrap-retention':
-      return 'dual';
-    case 'archive':
-    default:
-      return 'none';
-  }
-}
-
-const CLIENT_NARRATIVE_HEADERS = ['SITUATION', 'CHALLENGE', 'TRANSFORMATION'];
-const BRAND_SCT_HEADERS = ['STRATEGY', 'CREATIVE', 'TACTIC'];
-const ALL_SCT_HEADERS = [...CLIENT_NARRATIVE_HEADERS, ...BRAND_SCT_HEADERS];
-
-function isSCTHeader(h: string) {
-  const clean = h.replace(/\s*\(SCT\)\s*/i, '').trim();
-  return ALL_SCT_HEADERS.includes(clean);
-}
-
-function isDeliveryReflection(h: string) {
-  return /DELIVERY REFLECTION/i.test(h);
-}
-
-function isRebookingFraming(h: string) {
-  return /REBOOKING FRAMING/i.test(h);
-}
-
-function isGaps(h: string) {
-  return /^GAPS/.test(h);
-}
-
-function isNextSteps(h: string) {
-  return /NEXT STEPS|RECOMMENDED NEXT/.test(h);
-}
-
-// ── Parsing helpers ────────────────────────────────────────────
-
-/** Strip all markdown formatting so parsers see plain text */
-function normalizeBrief(text: string): string {
-  return text
-    // ## HEADER or ### HEADER → HEADER:
-    .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
-      const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
-      return upper.toUpperCase() === upper ? `${upper}:` : h;
-    })
-    // Normalize known section headers to uppercase
-    .replace(/^(Next Steps|Recommended Next Steps|Gaps|Strategic Note)/gim, (m) => m.toUpperCase())
-    // **HEADER:** or **HEADER** on its own line → HEADER:
-    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
-    // Inline **bold** → plain text
-    .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
-    // Inline __bold__ → plain text
-    .replace(/__([^_]+?)__/g, '$1')
-    // Inline *italic* → plain text (but not bullet lines starting with * )
-    .replace(/(?<=\S)\*([^*\n]+?)\*(?=\S|[.,;:!?])/g, '$1')
-    // Markdown links [text](url) → text
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    // Normalize * bullets to - bullets
-    .replace(/^\s*\*\s+/gm, '- ')
-    // Strip horizontal rules
-    .replace(/^-{2,}\s*$/gm, '')
-    // Clean up excessive newlines
-    .replace(/\n{3,}/g, '\n\n');
-}
-
-function parseSections(brief: string): ParsedSection[] {
-  const normalized = normalizeBrief(brief);
-  const parts = normalized.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
-  return parts
-    .map((part) => {
-      const m = part.match(/^([A-Z][A-Z\s&\/()\u2014-]+):([\s\S]*)/);
-      return m ? { header: m[1].trim(), content: m[2].trim() } : null;
-    })
-    .filter((s): s is ParsedSection => s !== null && s.content.length > 0);
-}
-
-function buildRenderPlan(sections: ParsedSection[], sctMode: SCTMode): RenderBlock[] {
-  const plan: RenderBlock[] = [];
-  let idx = 0;
-
-  if (sctMode === 'none') {
-    for (const s of sections) {
-      if (isSCTHeader(s.header)) continue;
-      if (isGaps(s.header)) {
-        plan.push({ kind: 'gaps', section: s, index: idx++ });
-      } else if (isNextSteps(s.header)) {
-        plan.push({ kind: 'nextsteps', section: s, index: idx++ });
-      } else {
-        plan.push({ kind: 'section', section: s, index: idx++ });
-      }
-    }
-    return plan;
-  }
-
-  if (sctMode === 'dual') {
-    // For wrap & retention: collect brand SCT and client narrative separately
-    const brandBuf: ParsedSection[] = [];
-    const clientBuf: ParsedSection[] = [];
-    const others: ParsedSection[] = [];
-    let inDelivery = false;
-    let inRebooking = false;
-
-    for (const s of sections) {
-      const clean = s.header.replace(/\s*\(SCT\)\s*/i, '').trim();
-
-      if (isDeliveryReflection(s.header)) {
-        inDelivery = true;
-        inRebooking = false;
-        continue;
-      }
-      if (isRebookingFraming(s.header)) {
-        inRebooking = true;
-        inDelivery = false;
-        continue;
-      }
-
-      if (BRAND_SCT_HEADERS.includes(clean)) {
-        brandBuf.push(s);
-        continue;
-      }
-      if (CLIENT_NARRATIVE_HEADERS.includes(clean)) {
-        clientBuf.push(s);
-        continue;
-      }
-
-      inDelivery = false;
-      inRebooking = false;
-
-      if (isGaps(s.header)) {
-        others.push(s);
-      } else if (isNextSteps(s.header)) {
-        others.push(s);
-      } else {
-        others.push(s);
-      }
-    }
-
-    // Render non-SCT sections first (PROJECT, CLIENT FEEDBACK, etc)
-    const regularSections = others.filter(s => !isGaps(s.header) && !isNextSteps(s.header));
-    const gapsSections = others.filter(s => isGaps(s.header));
-    const nextStepsSections = others.filter(s => isNextSteps(s.header));
-
-    for (const s of regularSections) {
-      plan.push({ kind: 'section', section: s, index: idx++ });
-    }
-
-    // Brand SCT group
-    if (brandBuf.length > 0) {
-      plan.push({ kind: 'sct-group', label: 'DELIVERY REFLECTION', sections: brandBuf, index: idx++ });
-    }
-
-    // Client narrative group
-    if (clientBuf.length > 0) {
-      plan.push({ kind: 'sct-group', label: 'REBOOKING FRAMING', sections: clientBuf, index: idx++ });
-    }
-
-    // Gaps and next steps at end
-    for (const s of gapsSections) {
-      plan.push({ kind: 'gaps', section: s, index: idx++ });
-    }
-    for (const s of nextStepsSections) {
-      plan.push({ kind: 'nextsteps', section: s, index: idx++ });
-    }
-
-    return plan;
-  }
-
-  // Single SCT mode (client-narrative or brand-sct)
-  const sctBuf: ParsedSection[] = [];
-  const nonSCTBefore: ParsedSection[] = [];
-  const nonSCTAfter: ParsedSection[] = [];
-  let foundSCT = false;
-
-  for (const s of sections) {
-    const clean = s.header.replace(/\s*\(SCT\)\s*/i, '').trim();
-    if (ALL_SCT_HEADERS.includes(clean)) {
-      sctBuf.push(s);
-      foundSCT = true;
-    } else if (!foundSCT) {
-      nonSCTBefore.push(s);
-    } else {
-      nonSCTAfter.push(s);
-    }
-  }
-
-  // Sections before SCT
-  for (const s of nonSCTBefore) {
-    if (isGaps(s.header)) {
-      plan.push({ kind: 'gaps', section: s, index: idx++ });
-    } else if (isNextSteps(s.header)) {
-      plan.push({ kind: 'nextsteps', section: s, index: idx++ });
-    } else {
-      plan.push({ kind: 'section', section: s, index: idx++ });
-    }
-  }
-
-  // SCT group
-  if (sctBuf.length > 0) {
-    const label = sctMode === 'client-narrative' ? 'CLIENT NARRATIVE' : 'EXECUTION FRAMEWORK';
-    plan.push({ kind: 'sct-group', label, sections: sctBuf, index: idx++ });
-  }
-
-  // Sections after SCT
-  for (const s of nonSCTAfter) {
-    if (isGaps(s.header)) {
-      plan.push({ kind: 'gaps', section: s, index: idx++ });
-    } else if (isNextSteps(s.header)) {
-      plan.push({ kind: 'nextsteps', section: s, index: idx++ });
-    } else {
-      plan.push({ kind: 'section', section: s, index: idx++ });
-    }
-  }
-
-  return plan;
-}
-
-// ── Copy formatting ────────────────────────────────────────────
-
-function formatPlainText(brief: string): string {
-  return normalizeBrief(brief).replace(/\n{3,}/g, '\n\n').trim();
-}
-
-// ── Content renderers ──────────────────────────────────────────
-
-function renderContentLines(content: string) {
-  const lines = content.split('\n');
-  const out: JSX.Element[] = [];
-  let listBuf: string[] = [];
-  let numBuf: { num: string; text: string }[] = [];
-  let paraBuf: string[] = [];
-
-  const flushPara = () => {
-    if (paraBuf.length === 0) return;
-    const text = paraBuf.join(' ').trim();
-    if (text) {
-      if (/^".*"$/.test(text)) {
-        out.push(
-          <div key={out.length} className="pl-3 my-2 border-l-2 border-fmc-copper italic text-sm text-white/70 leading-relaxed">
-            {text.slice(1, -1)}
-          </div>
-        );
-      } else {
-        out.push(<p key={out.length} className="text-sm text-white/80 leading-relaxed">{text}</p>);
-      }
-    }
-    paraBuf = [];
-  };
-
-  const flushList = () => {
-    if (listBuf.length === 0) return;
-    out.push(
-      <ul key={out.length} className="space-y-1.5 my-1">
-        {listBuf.map((item, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-white/80">
-            <span className="text-fmc-copper mt-0.5 flex-shrink-0">&middot;</span>
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    );
-    listBuf = [];
-  };
-
-  const flushNum = () => {
-    if (numBuf.length === 0) return;
-    out.push(
-      <ol key={out.length} className="space-y-3 my-1">
-        {numBuf.map((item, i) => renderNextStepItem(item, i))}
-      </ol>
-    );
-    numBuf = [];
-  };
-
-  for (const raw of lines) {
-    const t = raw.trim();
-    if (!t) { flushPara(); flushList(); flushNum(); continue; }
-
-    // List item
-    if (/^[-\u2022\u25A1\u2713\u2717\u25AA]\s/.test(t)) {
-      flushPara(); flushNum();
-      listBuf.push(t.replace(/^[-\u2022\u25A1\u2713\u2717\u25AA]\s*/, ''));
-      continue;
-    }
-
-    // Numbered item
-    const nm = t.match(/^(\d+)[.)]\s+(.+)$/);
-    if (nm) { flushPara(); flushList(); numBuf.push({ num: nm[1], text: nm[2] }); continue; }
-
-    // Key-value
-    const kv = t.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
-    if (kv && kv[1].length < 35) {
-      flushPara(); flushList(); flushNum();
-      out.push(
-        <div key={out.length} className="flex items-baseline gap-2 py-0.5">
-          <span className="text-xs text-white/50 flex-shrink-0">{kv[1]}:</span>
-          <span className="text-sm font-medium text-fmc-offwhite">{kv[2]}</span>
-        </div>
-      );
-      continue;
-    }
-
-    flushList(); flushNum();
-    paraBuf.push(t);
-  }
-
-  flushPara(); flushList(); flushNum();
-  return out;
-}
-
-function renderNextStepItem(item: { num: string; text: string }, i: number) {
-  const ownerMatch = item.text.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+to\s+(.+)$/);
-  const dateRe = /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|(?:this|next)\s+(?:week|month)|by\s+(?:end\s+of\s+)?\w+(?:\s+\d+)?(?:,?\s+\d{4})?|Q[1-4]\s+\d{4})\b/i;
-
-  const datePill = item.text.match(dateRe)?.[1] ?? null;
-
-  return (
-    <li key={i} className="flex items-start gap-3 text-sm">
-      <span className="text-xs font-semibold text-white/30 mt-0.5 w-5 flex-shrink-0 text-right">
-        {item.num}.
-      </span>
-      <span className="text-white/70 leading-relaxed">
-        {ownerMatch ? (
-          <>
-            <span className="font-medium text-fmc-offwhite">{ownerMatch[1]}</span>
-            <span className="text-white/50"> to </span>
-            {ownerMatch[2]}
-          </>
-        ) : (
-          item.text
-        )}
-        {datePill && (
-          <span className="inline-flex ml-2 bg-white/[0.06] rounded-full px-2 py-0.5 text-xs text-fmc-teal align-middle">
-            {datePill}
-          </span>
-        )}
-      </span>
-    </li>
-  );
-}
-
-function renderGapItems(content: string) {
-  const lines = content.split('\n').map((l) => l.trim()).filter(Boolean);
-  const items: string[] = [];
-  let currentItem = '';
-
-  for (const line of lines) {
-    if (/^[-\u2022\u25A1\u2717\u26A0]\s/.test(line)) {
-      if (currentItem) items.push(currentItem);
-      currentItem = line.replace(/^[-\u2022\u25A1\u2717\u26A0]\s*/, '');
-    } else if (currentItem) {
-      currentItem += ' ' + line;
-    } else {
-      items.push(line);
-    }
-  }
-  if (currentItem) items.push(currentItem);
-
-  return items;
-}
-
-// ── Next steps grouped by person ──────────────────────────────
-
-type GroupedSteps = { owner: string; actions: { text: string; deadline: string | null }[] };
-
-function groupNextSteps(content: string): GroupedSteps[] {
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-  const groups: Map<string, { text: string; deadline: string | null }[]> = new Map();
-
-  const ownerPatterns = [
-    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:to|should|will|needs to)\s+(.+)$/,
-    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?):\s+(.+)$/,
-    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*[-\u2014]\s+(.+)$/,
-  ];
-
-  const dateRe = /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|(?:this|next)\s+(?:week|month)|by\s+(?:end\s+of\s+)?\w+(?:\s+\d+)?(?:,?\s+\d{4})?|Q[1-4]\s+\d{4}|\d+\s+(?:hours?|days?|weeks?))\b/i;
-
-  for (const raw of lines) {
-    const line = raw.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022\u25A1]\s*/, '');
-    if (!line) continue;
-
-    let owner = 'GENERAL';
-    let action = line;
-
-    for (const pattern of ownerPatterns) {
-      const m = line.match(pattern);
-      if (m) {
-        owner = m[1].toUpperCase();
-        if (owner === 'FERGUSON') owner = 'FERG';
-        action = m[2];
-        break;
-      }
-    }
-
-    const deadlineMatch = action.match(dateRe);
-    const deadline = deadlineMatch ? deadlineMatch[1] : null;
-
-    if (!groups.has(owner)) groups.set(owner, []);
-    groups.get(owner)!.push({ text: action, deadline });
-  }
-
-  const result: GroupedSteps[] = [];
-  groups.forEach((actions, owner) => {
-    if (owner !== 'GENERAL') result.push({ owner, actions });
-  });
-  if (groups.has('GENERAL')) {
-    result.push({ owner: 'GENERAL', actions: groups.get('GENERAL')! });
-  }
-  return result;
-}
-
-// ── SCT Card Component ────────────────────────────────────────
-
-function SCTGroup({ label, sections }: { label: string; sections: ParsedSection[] }) {
-  return (
-    <div>
-      <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-fmc-copper" />
-        {label}
-      </h3>
-      <div className="border-l-2 border-fmc-copper pl-4 space-y-3">
-        {sections.map((s, si) => {
-          const cleanLabel = s.header.replace(/\s*\(SCT\)\s*/i, '');
-          return (
-            <div key={si} className="bg-white/[0.03] rounded-xl p-4">
-              <span className="label-upper text-white/50 block mb-2">{cleanLabel}</span>
-              <div className="text-sm text-white/80 leading-relaxed">
-                {renderContentLines(s.content)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // ── Main component ─────────────────────────────────────────────
 
 export default function BriefOutput({
-  brief,
-  gaps,
+  data,
   brandId,
   brandName,
   brandTagline,
   accentColor,
   briefTypeName,
-  briefTypeId,
+  sctMode,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [pdfError, setPdfError] = useState(false);
 
-  const sctMode = getSCTMode(briefTypeId);
-
-  const renderPlan = useMemo(() => {
-    const sections = parseSections(brief);
-    return buildRenderPlan(sections, sctMode);
-  }, [brief, sctMode]);
-
-  const hasGapsSection = renderPlan.some((b) => b.kind === 'gaps');
   const timestamp = useMemo(
     () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
     []
   );
 
-  // ── Handlers ──
+  // ── Copy as plain text ──
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(formatPlainText(brief));
+    const lines: string[] = [];
+    lines.push(data.projectName);
+    if (data.projectDescription) lines.push(data.projectDescription);
+    lines.push('');
+
+    if (data.context.length > 0) {
+      for (const kv of data.context) {
+        lines.push(`${kv.label}: ${kv.value}`);
+      }
+      lines.push('');
+    }
+
+    for (const section of data.sections) {
+      lines.push(section.header.toUpperCase() + ':');
+      if (section.body) lines.push(section.body);
+      if (section.items) section.items.forEach(i => lines.push(`- ${i}`));
+      if (section.keyValues) section.keyValues.forEach(kv => lines.push(`${kv.label}: ${kv.value}`));
+      if (section.checklist) section.checklist.forEach(c => lines.push(`${c.checked ? '[x]' : '[ ]'} ${c.label}`));
+      lines.push('');
+    }
+
+    if (data.sctPrimary) {
+      lines.push(data.sctPrimary.groupLabel.toUpperCase() + ':');
+      for (const b of data.sctPrimary.blocks) {
+        lines.push(`${b.label}: ${b.content}`);
+      }
+      lines.push('');
+    }
+    if (data.sctSecondary) {
+      lines.push(data.sctSecondary.groupLabel.toUpperCase() + ':');
+      for (const b of data.sctSecondary.blocks) {
+        lines.push(`${b.label}: ${b.content}`);
+      }
+      lines.push('');
+    }
+
+    if (data.gaps.length > 0) {
+      lines.push('GAPS:');
+      data.gaps.forEach(g => lines.push(`- [${g.severity || 'moderate'}] ${g.text}`));
+      lines.push('');
+    }
+
+    if (data.nextSteps.length > 0) {
+      lines.push('NEXT STEPS:');
+      data.nextSteps.forEach(s => {
+        const dl = s.deadline ? ` (${s.deadline})` : '';
+        lines.push(`${s.owner}: ${s.action}${dl}`);
+      });
+    }
+
+    await navigator.clipboard.writeText(lines.join('\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // ── PDF export ──
 
   const handleDownloadPDF = async () => {
     setGeneratingPDF(true);
@@ -516,37 +102,31 @@ export default function BriefOutput({
     try {
       const html2pdf = (await import('html2pdf.js')).default;
 
-      // Build the branded HTML
       const htmlContent = buildPDFHTML({
-        brief,
+        data,
         brandId,
         brandName,
-        brandTagline,
         briefTypeName,
-        briefTypeId,
+        sctMode,
       });
 
-      // Parse out just the body content and styles from the full HTML
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
       const bodyEl = doc.body;
       const styleEl = doc.querySelector('style');
 
-      // Create offscreen container
       const container = document.createElement('div');
       container.style.position = 'fixed';
       container.style.left = '-9999px';
       container.style.top = '0';
       container.style.width = '816px';
 
-      // Copy styles into the container
       if (styleEl) {
         const s = document.createElement('style');
         s.textContent = styleEl.textContent;
         container.appendChild(s);
       }
 
-      // Copy body attributes and content
       const wrapper = document.createElement('div');
       wrapper.setAttribute('style', bodyEl.getAttribute('style') || '');
       wrapper.innerHTML = bodyEl.innerHTML;
@@ -554,10 +134,8 @@ export default function BriefOutput({
 
       document.body.appendChild(container);
 
-      // Wait for fonts to load
       await document.fonts.ready;
 
-      // Wait for images to load
       const images = container.querySelectorAll('img');
       if (images.length > 0) {
         await Promise.all(
@@ -571,46 +149,7 @@ export default function BriefOutput({
           )
         );
       }
-      // Extra buffer for rendering
       await new Promise(resolve => setTimeout(resolve, 200));
-
-      // ── Page-aware layout: measure sections, prevent mid-section page breaks ──
-      const PAGE_HEIGHT = 1056; // 11in × 96dpi = one letter page in CSS px
-
-      const pdfSections = Array.from(wrapper.querySelectorAll('.pdf-section'));
-      for (const section of pdfSections) {
-        const wrapperTop = wrapper.getBoundingClientRect().top;
-        const rect = section.getBoundingClientRect();
-        const top = rect.top - wrapperTop;
-        const bottom = top + rect.height;
-
-        const topPage = Math.floor(top / PAGE_HEIGHT);
-        const bottomPage = Math.floor(Math.max(0, bottom - 1) / PAGE_HEIGHT);
-
-        // Section crosses a page boundary and can fit on a single page — push to next page
-        if (topPage !== bottomPage && rect.height < PAGE_HEIGHT * 0.9) {
-          const nextPageStart = (topPage + 1) * PAGE_HEIGHT;
-          const spacer = document.createElement('div');
-          spacer.style.height = `${nextPageStart - top}px`;
-          section.parentNode?.insertBefore(spacer, section);
-        }
-      }
-
-      // Pin footer to bottom of its page
-      const footerEl = wrapper.querySelector('.pdf-footer');
-      if (footerEl) {
-        const wrapperTop = wrapper.getBoundingClientRect().top;
-        const fRect = footerEl.getBoundingClientRect();
-        const footerTop = fRect.top - wrapperTop;
-        const footerPage = Math.floor(footerTop / PAGE_HEIGHT);
-        const pageBottom = (footerPage + 1) * PAGE_HEIGHT;
-        const desiredTop = pageBottom - fRect.height - 48;
-        if (desiredTop > footerTop + 20) {
-          const spacer = document.createElement('div');
-          spacer.style.height = `${desiredTop - footerTop}px`;
-          footerEl.parentNode?.insertBefore(spacer, footerEl);
-        }
-      }
 
       const bgColor = brandId === 'tourbus' ? '#F5F0E8'
         : brandId === 'oakandcider' ? '#FAF6F0'
@@ -635,7 +174,6 @@ export default function BriefOutput({
           format: 'letter',
           orientation: 'portrait' as const,
         },
-        pagebreak: { mode: ['avoid-all', 'css'], avoid: '.no-break' },
       }).from(wrapper).save();
 
       document.body.removeChild(container);
@@ -648,11 +186,10 @@ export default function BriefOutput({
     }
   };
 
-  // ── Render ──
+  // ── Render ──────────────────────────────────────────────────
 
   return (
     <div className="glass-panel mt-6 animate-fadeUp overflow-hidden">
-      {/* Top gradient accent */}
       <div
         className="h-[2px] w-full"
         style={{ background: 'linear-gradient(to right, #E03413, #B45F34, transparent)' }}
@@ -692,162 +229,230 @@ export default function BriefOutput({
           </button>
         </div>
 
-        {/* Brief sections */}
-        <div>
-          {renderPlan.map((block) => {
-            const delay = `${block.index * 60}ms`;
-
-            if (block.kind === 'sct-group') {
-              return (
-                <div
-                  key={`sct-${block.index}`}
-                  className="opacity-0 animate-fadeUp mt-6 first:mt-0"
-                  style={{ animationDelay: delay }}
-                >
-                  <div className="border-t border-white/[0.06] pt-5 first:border-t-0 first:pt-0">
-                    <SCTGroup label={block.label} sections={block.sections} />
-                  </div>
+        {/* Context grid */}
+        {data.context.length > 0 && (
+          <div className="opacity-0 animate-fadeUp mb-6">
+            <h3 className="label-upper text-white/60 mb-3 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-fmc-copper" />
+              Context
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {data.context.map((kv, i) => (
+                <div key={i} className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5">
+                  <span className="text-[10px] font-bold tracking-widest uppercase text-fmc-firestarter/80 block mb-1">{kv.label}</span>
+                  <span className="text-sm font-medium text-fmc-offwhite">{kv.value}</span>
                 </div>
-              );
-            }
-
-            if (block.kind === 'gaps') {
-              const gapItems = renderGapItems(block.section.content);
-              return (
-                <div
-                  key={`gaps-${block.index}`}
-                  className="opacity-0 animate-fadeUp mt-6"
-                  style={{ animationDelay: delay }}
-                >
-                  <div
-                    className="rounded-2xl p-5"
-                    style={{
-                      background: 'rgba(224,52,19,0.06)',
-                      borderLeft: '3px solid rgba(224,52,19,0.4)',
-                    }}
-                  >
-                    <h3 className="label-upper text-fmc-firestarter mb-3">GAPS IDENTIFIED</h3>
-                    {gapItems.length > 0 ? (
-                      <ul className="space-y-2">
-                        {gapItems.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-fmc-offwhite leading-relaxed">
-                            <span className="text-fmc-firestarter flex-shrink-0 mt-px">{'\u26A0'}</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-fmc-teal flex items-center gap-2">
-                        <span>{'\u2713'}</span> No gaps identified
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-
-            if (block.kind === 'nextsteps') {
-              const stepGroups = groupNextSteps(block.section.content);
-              return (
-                <div
-                  key={`ns-${block.index}`}
-                  className="opacity-0 animate-fadeUp mt-6"
-                  style={{ animationDelay: delay }}
-                >
-                  <div className="border-t border-white/[0.06] pt-5">
-                    <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
-                      <span className="w-[2px] h-3 bg-fmc-firestarter rounded-full" />
-                      {block.section.header}
-                    </h3>
-                    <div className="space-y-5">
-                      {stepGroups.map((group, gi) => (
-                        <div key={gi}>
-                          <span className="label-upper text-fmc-firestarter block mb-2">{group.owner}</span>
-                          <div className="border-l-2 border-fmc-copper pl-4 space-y-1.5">
-                            {group.actions.map((action, ai) => (
-                              <div key={ai} className="flex items-baseline gap-2 text-sm text-white/70 leading-relaxed">
-                                <span>{action.text}</span>
-                                {action.deadline && (
-                                  <span className="inline-flex bg-white/[0.06] rounded-full px-2 py-0.5 text-xs text-fmc-teal whitespace-nowrap">
-                                    {action.deadline}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            // Regular section
-            return (
-              <div
-                key={`s-${block.index}`}
-                className="opacity-0 animate-fadeUp mt-6 first:mt-0"
-                style={{ animationDelay: delay }}
-              >
-                <div className="border-t border-white/[0.06] pt-5 first:border-t-0 first:pt-0">
-                  <h3 className="label-upper text-white/60 mb-3 flex items-center gap-2">
-                    <span className="w-[2px] h-3 bg-fmc-firestarter rounded-full" />
-                    {block.section.header}
-                  </h3>
-                  <div>{renderContentLines(block.section.content)}</div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* No-gaps positive signal when gaps section is absent */}
-          {!hasGapsSection && gaps.length === 0 && (
-            <div className="opacity-0 animate-fadeUp mt-6" style={{ animationDelay: `${renderPlan.length * 60}ms` }}>
-              <div
-                className="rounded-2xl p-5"
-                style={{
-                  background: 'rgba(73,121,123,0.06)',
-                  borderLeft: '3px solid rgba(73,121,123,0.3)',
-                }}
-              >
-                <p className="text-sm text-fmc-teal flex items-center gap-2">
-                  <span>{'\u2713'}</span> No gaps identified
-                </p>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Fallback: standalone gaps from API when no GAPS section exists */}
-          {!hasGapsSection && gaps.length > 0 && (
-            <div className="opacity-0 animate-fadeUp mt-6" style={{ animationDelay: `${renderPlan.length * 60}ms` }}>
-              <div
-                className="rounded-2xl p-5"
-                style={{
-                  background: 'rgba(224,52,19,0.06)',
-                  borderLeft: '3px solid rgba(224,52,19,0.4)',
-                }}
-              >
-                <h3 className="label-upper text-fmc-firestarter mb-3">GAPS IDENTIFIED</h3>
-                <ul className="space-y-2">
-                  {gaps.map((gap, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-fmc-offwhite leading-relaxed">
-                      <span className="text-fmc-firestarter flex-shrink-0 mt-px">{'\u26A0'}</span>
-                      <span>{gap}</span>
+        {/* Content sections */}
+        {data.sections.map((section, si) => (
+          <div
+            key={`s-${si}`}
+            className="opacity-0 animate-fadeUp mt-5 first:mt-0"
+            style={{ animationDelay: `${si * 60}ms` }}
+          >
+            <div className="border-t border-white/[0.06] pt-4 first:border-t-0 first:pt-0">
+              <h3 className="label-upper text-white/60 mb-3 flex items-center gap-2">
+                <span className="w-[2px] h-3 bg-fmc-firestarter rounded-full" />
+                {section.header}
+              </h3>
+
+              {section.body && (
+                <p className="text-sm text-white/80 leading-relaxed">{section.body}</p>
+              )}
+
+              {section.items && section.items.length > 0 && (
+                <ul className="space-y-1.5 my-1">
+                  {section.items.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-white/80">
+                      <span className="text-fmc-copper mt-0.5 flex-shrink-0">&middot;</span>
+                      <span>{item}</span>
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {section.keyValues && section.keyValues.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                  {section.keyValues.map((kv, i) => (
+                    <div key={i} className="bg-white/[0.03] rounded-lg px-3 py-2">
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 block mb-0.5">{kv.label}</span>
+                      <span className="text-sm text-fmc-offwhite">{kv.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {section.checklist && section.checklist.length > 0 && (
+                <div className="space-y-1.5 mt-1">
+                  {section.checklist.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <span className={`flex-shrink-0 mt-0.5 ${item.checked ? 'text-fmc-teal' : 'text-white/30'}`}>
+                        {item.checked ? '\u2713' : '\u25A1'}
+                      </span>
+                      <span className="text-white/80">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {/* SCT groups */}
+        {data.sctPrimary && sctMode !== 'none' && (
+          <div className="opacity-0 animate-fadeUp mt-6" style={{ animationDelay: `${data.sections.length * 60}ms` }}>
+            <div className="border-t border-white/[0.06] pt-5">
+              <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-fmc-copper" />
+                {data.sctPrimary.groupLabel}
+              </h3>
+              <div className="border-l-2 border-fmc-copper pl-4 space-y-3">
+                {data.sctPrimary.blocks.map((block, bi) => (
+                  <div key={bi} className="bg-white/[0.03] rounded-xl p-4">
+                    <span className="label-upper text-white/50 block mb-2">{block.label}</span>
+                    <p className="text-sm text-white/80 leading-relaxed">{block.content}</p>
+                  </div>
+                ))}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {data.sctSecondary && sctMode === 'dual' && (
+          <div className="opacity-0 animate-fadeUp mt-6">
+            <div className="border-t border-white/[0.06] pt-5">
+              <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-fmc-copper" />
+                {data.sctSecondary.groupLabel}
+              </h3>
+              <div className="border-l-2 border-fmc-copper pl-4 space-y-3">
+                {data.sctSecondary.blocks.map((block, bi) => (
+                  <div key={bi} className="bg-white/[0.03] rounded-xl p-4">
+                    <span className="label-upper text-white/50 block mb-2">{block.label}</span>
+                    <p className="text-sm text-white/80 leading-relaxed">{block.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Strategic note */}
+        {data.strategicNote && (
+          <div className="opacity-0 animate-fadeUp mt-6">
+            <div
+              className="rounded-2xl p-5"
+              style={{
+                background: 'rgba(73,121,123,0.06)',
+                borderLeft: '3px solid rgba(73,121,123,0.3)',
+              }}
+            >
+              <h3 className="label-upper text-fmc-teal mb-2">Strategic Note</h3>
+              <p className="text-sm text-white/80 leading-relaxed">{data.strategicNote}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Gaps */}
+        {data.gaps.length > 0 && (
+          <div className="opacity-0 animate-fadeUp mt-6">
+            <div
+              className="rounded-2xl p-5"
+              style={{
+                background: 'rgba(224,52,19,0.06)',
+                borderLeft: '3px solid rgba(224,52,19,0.4)',
+              }}
+            >
+              <h3 className="label-upper text-fmc-firestarter mb-3">GAPS IDENTIFIED</h3>
+              <ul className="space-y-2">
+                {data.gaps.map((gap, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-fmc-offwhite leading-relaxed">
+                    <span className="text-fmc-firestarter flex-shrink-0 mt-px">{'\u26A0'}</span>
+                    <span>{gap.text}</span>
+                    {gap.severity && (
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-auto whitespace-nowrap ${
+                        gap.severity === 'critical' ? 'bg-fmc-firestarter/10 text-fmc-firestarter' :
+                        gap.severity === 'moderate' ? 'bg-fmc-copper/10 text-fmc-copper' :
+                        'bg-white/[0.06] text-white/40'
+                      }`}>
+                        {gap.severity}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {data.gaps.length === 0 && (
+          <div className="opacity-0 animate-fadeUp mt-6">
+            <div
+              className="rounded-2xl p-5"
+              style={{
+                background: 'rgba(73,121,123,0.06)',
+                borderLeft: '3px solid rgba(73,121,123,0.3)',
+              }}
+            >
+              <p className="text-sm text-fmc-teal flex items-center gap-2">
+                <span>{'\u2713'}</span> No gaps identified
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Next steps grouped by owner */}
+        {data.nextSteps.length > 0 && (() => {
+          const groups = new Map<string, typeof data.nextSteps>();
+          for (const step of data.nextSteps) {
+            const owner = step.owner || 'General';
+            if (!groups.has(owner)) groups.set(owner, []);
+            groups.get(owner)!.push(step);
+          }
+          const orderedKeys = [...groups.keys()].filter(k => k !== 'General');
+          if (groups.has('General')) orderedKeys.push('General');
+
+          return (
+            <div className="opacity-0 animate-fadeUp mt-6">
+              <div className="border-t border-white/[0.06] pt-5">
+                <h3 className="label-upper text-white/60 mb-4 flex items-center gap-2">
+                  <span className="w-[2px] h-3 bg-fmc-firestarter rounded-full" />
+                  Next Steps
+                </h3>
+                <div className="space-y-5">
+                  {orderedKeys.map((owner, gi) => (
+                    <div key={gi}>
+                      <span className="label-upper text-fmc-firestarter block mb-2">{owner}</span>
+                      <div className="border-l-2 border-fmc-copper pl-4 space-y-1.5">
+                        {groups.get(owner)!.map((step, ai) => (
+                          <div key={ai} className="flex items-baseline gap-2 text-sm text-white/70 leading-relaxed">
+                            <span className="text-fmc-firestarter/40 flex-shrink-0">{'\u2192'}</span>
+                            <span>{step.action}</span>
+                            {step.deadline && (
+                              <span className="inline-flex bg-white/[0.06] rounded-full px-2 py-0.5 text-xs text-fmc-teal whitespace-nowrap">
+                                {step.deadline}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Timestamp footer */}
         <div className="mt-8 pt-4 border-t border-white/[0.06] text-xs text-white/30">
           Generated {timestamp}
         </div>
       </div>
-
     </div>
   );
 }

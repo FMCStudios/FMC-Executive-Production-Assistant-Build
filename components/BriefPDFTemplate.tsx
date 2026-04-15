@@ -1,5 +1,7 @@
 'use client';
 
+import type { BriefSchema, SCTMode } from '@/types/brief-schema';
+
 // ── Brand theme definitions ───────────────────────────────────
 
 type BrandTheme = {
@@ -12,7 +14,6 @@ type BrandTheme = {
   cardBg: string;
   cardBorder: string;
   gapsBg: string;
-  gapsBorder: string;
   noteBg: string;
   noteBorder: string;
   logoSrc: string | null;
@@ -26,11 +27,8 @@ type BrandTheme = {
   titleSpacing: string;
   titleSize: string;
   bodyLineHeight: string;
-  // Language overrides for O&C
   labelProspect: string;
-  labelClientNarrative: string;
   labelGaps: string;
-  labelNote: string;
 };
 
 const themes: Record<string, BrandTheme> = {
@@ -42,8 +40,7 @@ const themes: Record<string, BrandTheme> = {
     secondary: '#B45F34',
     cardBg: 'rgba(240,235,225,0.03)',
     cardBorder: 'rgba(240,235,225,0.18)',
-    gapsBg: 'rgba(180,95,52,0.08)',
-    gapsBorder: '#B45F34',
+    gapsBg: 'rgba(224,52,19,0.06)',
     noteBg: 'rgba(73,121,123,0.08)',
     noteBorder: '#49797B',
     logoSrc: '/logos/fmc-cube.png',
@@ -57,9 +54,7 @@ const themes: Record<string, BrandTheme> = {
     titleSize: '32px',
     bodyLineHeight: '1.65',
     labelProspect: 'Prospect',
-    labelClientNarrative: 'Client Narrative',
     labelGaps: 'Gaps \u2014 Critical Unknowns',
-    labelNote: 'Strategic Note',
   },
   tourbus: {
     bg: '#F5F0E8',
@@ -70,7 +65,6 @@ const themes: Record<string, BrandTheme> = {
     cardBg: 'rgba(26,26,26,0.04)',
     cardBorder: 'rgba(26,26,26,0.12)',
     gapsBg: 'rgba(212,43,43,0.06)',
-    gapsBorder: '#D42B2B',
     noteBg: 'rgba(212,43,43,0.04)',
     noteBorder: '#C41E3A',
     logoSrc: '/logos/tbe-badge.png',
@@ -84,9 +78,7 @@ const themes: Record<string, BrandTheme> = {
     titleSize: '32px',
     bodyLineHeight: '1.65',
     labelProspect: 'Prospect',
-    labelClientNarrative: 'Client Narrative',
     labelGaps: 'Gaps \u2014 Critical Unknowns',
-    labelNote: 'Strategic Note',
   },
   oakandcider: {
     bg: '#FAF6F0',
@@ -98,7 +90,6 @@ const themes: Record<string, BrandTheme> = {
     cardBg: 'rgba(42,42,42,0.025)',
     cardBorder: 'rgba(42,42,42,0.1)',
     gapsBg: 'rgba(196,132,45,0.06)',
-    gapsBorder: '#C4842D',
     noteBg: 'rgba(122,139,111,0.08)',
     noteBorder: '#7A8B6F',
     logoSrc: null,
@@ -113,9 +104,7 @@ const themes: Record<string, BrandTheme> = {
     titleSize: '30px',
     bodyLineHeight: '1.75',
     labelProspect: 'The Couple',
-    labelClientNarrative: 'Their Story',
     labelGaps: 'Still Needed',
-    labelNote: 'Note',
   },
 };
 
@@ -123,180 +112,10 @@ function getTheme(brandId: string): BrandTheme {
   return themes[brandId] || themes.fmc;
 }
 
-// ── Section parsing (mirrors BriefOutput) ─────────────────────
-
-type ParsedSection = { header: string; content: string };
-
-/** Strip all markdown formatting so parsers see plain text */
-function normalizeBrief(text: string): string {
-  return text
-    .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
-      const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
-      return upper.toUpperCase() === upper ? `${upper}:` : h;
-    })
-    .replace(/^(Next Steps|Recommended Next Steps|Gaps|Strategic Note)/gim, (m) => m.toUpperCase())
-    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
-    .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
-    .replace(/__([^_]+?)__/g, '$1')
-    .replace(/(?<=\S)\*([^*\n]+?)\*(?=\S|[.,;:!?])/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^\s*\*\s+/gm, '- ')
-    .replace(/^-{2,}\s*$/gm, '')
-    .replace(/\n{3,}/g, '\n\n');
-}
-
-function parseSections(brief: string): ParsedSection[] {
-  const normalized = normalizeBrief(brief);
-  const parts = normalized.split(/\n(?=[A-Z][A-Z\s&\/()\u2014-]+:)/g);
-  return parts
-    .map((part) => {
-      const m = part.match(/^([A-Z][A-Z\s&\/()\u2014-]+):([\s\S]*)/);
-      return m ? { header: m[1].trim(), content: m[2].trim() } : null;
-    })
-    .filter((s): s is ParsedSection => s !== null && s.content.length > 0);
-}
-
-// ── Next steps grouped by person ──────────────────────────────
-
-type GroupedSteps = { owner: string; actions: { text: string; deadline: string | null }[] };
-
-function groupNextSteps(content: string): GroupedSteps[] {
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-  const groups: Map<string, { text: string; deadline: string | null }[]> = new Map();
-
-  const ownerPatterns = [
-    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*(?:to|should|will|needs to)\s+(.+)$/,
-    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?):\s+(.+)$/,
-    /^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s*[-\u2014]\s+(.+)$/,
-  ];
-
-  const dateRe = /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|(?:this|next)\s+(?:week|month)|by\s+(?:end\s+of\s+)?\w+(?:\s+\d+)?(?:,?\s+\d{4})?|Q[1-4]\s+\d{4}|\d+\s+(?:hours?|days?|weeks?))\b/i;
-
-  for (const raw of lines) {
-    const line = raw.replace(/^[\d]+[.)]\s*/, '').replace(/^[-\u2022\u25A1]\s*/, '');
-    if (!line) continue;
-
-    let owner = 'GENERAL';
-    let action = line;
-
-    for (const pattern of ownerPatterns) {
-      const m = line.match(pattern);
-      if (m) {
-        owner = m[1].toUpperCase();
-        if (owner === 'FERGUSON') owner = 'FERG';
-        action = m[2];
-        break;
-      }
-    }
-
-    const deadlineMatch = action.match(dateRe);
-    const deadline = deadlineMatch ? deadlineMatch[1] : null;
-
-    if (!groups.has(owner)) groups.set(owner, []);
-    groups.get(owner)!.push({ text: action, deadline });
-  }
-
-  // Move GENERAL to the end
-  const result: GroupedSteps[] = [];
-  groups.forEach((actions, owner) => {
-    if (owner !== 'GENERAL') result.push({ owner, actions });
-  });
-  if (groups.has('GENERAL')) {
-    result.push({ owner: 'GENERAL', actions: groups.get('GENERAL')! });
-  }
-
-  return result;
-}
-
-// ── SCT detection ─────────────────────────────────────────────
-
-const CLIENT_NARRATIVE = ['SITUATION', 'CHALLENGE', 'TRANSFORMATION'];
-const BRAND_SCT = ['STRATEGY', 'CREATIVE', 'TACTIC'];
-
-function isSCTHeader(h: string): boolean {
-  const clean = h.replace(/\s*\(SCT\)\s*/i, '').trim();
-  return [...CLIENT_NARRATIVE, ...BRAND_SCT].includes(clean);
-}
-function isGaps(h: string) { return /^GAPS/.test(h); }
-function isNextSteps(h: string) { return /NEXT STEPS|RECOMMENDED NEXT/.test(h); }
-function isStrategicNote(h: string) { return /STRATEGIC NOTE|^NOTE$/.test(h); }
-
-// ── HTML builders ─────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function renderContentHtml(content: string, t: BrandTheme): string {
-  const lines = content.split('\n');
-  let html = '';
-
-  // Detect leading block of consecutive key-value pairs for info grid
-  const kvBlock: { label: string; value: string }[] = [];
-  let kvEndIdx = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) { kvEndIdx = i + 1; continue; }
-    const kv = line.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
-    if (kv && kv[1].length < 35) {
-      kvBlock.push({ label: kv[1], value: kv[2] });
-      kvEndIdx = i + 1;
-    } else {
-      break;
-    }
-  }
-
-  // Render info grid if 2+ consecutive KV pairs
-  if (kvBlock.length >= 2) {
-    const cols = Math.min(kvBlock.length, 3);
-    html += `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px 20px;margin-bottom:12px">`;
-    for (const kv of kvBlock) {
-      html += `<div style="background:${t.cardBg};border:1px solid ${t.cardBorder};border-radius:8px;padding:10px 14px">
-        <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${t.accent};margin-bottom:4px">${escapeHtml(kv.label)}</div>
-        <div style="font-size:13px;font-weight:500;color:${t.text}">${escapeHtml(kv.value)}</div>
-      </div>`;
-    }
-    html += `</div>`;
-  } else {
-    kvEndIdx = 0;
-  }
-
-  // Render remaining lines
-  for (let i = kvEndIdx; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) { html += '<div style="height:6px"></div>'; continue; }
-
-    // Key-value pair (non-grid, inline)
-    const kv = line.match(/^([A-Z][A-Za-z\s\/&'\u2014]+?):\s+(.+)$/);
-    if (kv && kv[1].length < 35) {
-      html += `<div style="display:flex;gap:8px;align-items:baseline;padding:2px 0">
-        <span style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${t.textMuted};white-space:nowrap">${escapeHtml(kv[1])}</span>
-        <span style="font-size:13px;font-weight:500;color:${t.text}">${escapeHtml(kv[2])}</span>
-      </div>`;
-      continue;
-    }
-
-    // List item
-    if (/^[-\u2022\u25A1\u2713\u2717\u25AA]\s/.test(line)) {
-      const item = line.replace(/^[-\u2022\u25A1\u2713\u2717\u25AA]\s*/, '');
-      html += `<div style="display:flex;gap:6px;align-items:flex-start;padding:2px 0">
-        <span style="color:${t.secondary};margin-top:2px;flex-shrink:0">\u00B7</span>
-        <span style="font-size:13px;color:${addAlpha(t.text, 0.7)};line-height:${t.bodyLineHeight}">${escapeHtml(item)}</span>
-      </div>`;
-      continue;
-    }
-
-    // Quoted text
-    if (/^".*"$/.test(line)) {
-      html += `<div style="padding-left:12px;border-left:2px solid ${t.secondary};font-style:italic;font-size:13px;color:${addAlpha(t.text, 0.6)};line-height:${t.bodyLineHeight};margin:6px 0">${escapeHtml(line.slice(1, -1))}</div>`;
-      continue;
-    }
-
-    // Plain text
-    html += `<p style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight};margin:2px 0">${escapeHtml(line)}</p>`;
-  }
-
-  return html;
 }
 
 function addAlpha(hex: string, alpha: number): string {
@@ -307,55 +126,34 @@ function addAlpha(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+function sectionLabel(label: string, t: BrandTheme): string {
+  return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <span style="font-family:${t.displayFont};font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};white-space:nowrap">${escapeHtml(label)}</span>
+    <div style="flex:1;height:1px;background:${t.cardBorder}"></div>
+  </div>`;
+}
+
+function severityColor(severity: string | undefined, t: BrandTheme): string {
+  if (severity === 'critical') return t.accent;
+  if (severity === 'moderate') return t.secondary;
+  return t.tertiary || t.textMuted;
+}
+
 // ── Main template builder ─────────────────────────────────────
 
 export type PDFTemplateProps = {
-  brief: string;
+  data: BriefSchema;
   brandId: string;
   brandName: string;
-  brandTagline: string;
   briefTypeName: string;
-  briefTypeId: string;
+  sctMode: SCTMode;
 };
 
 export function buildPDFHTML(props: PDFTemplateProps): string {
-  const { brief, brandId, brandName, briefTypeName, briefTypeId } = props;
+  const { data, brandId, brandName, briefTypeName, sctMode } = props;
   const t = getTheme(brandId);
-  const sections = parseSections(brief);
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-
-  // Extract title info
-  const projectSection = sections.find(s => /^PROJECT/.test(s.header));
-  const firstLine = projectSection?.content.split('\n')[0]?.trim() || '';
-  const projectName = firstLine.replace(/^(?:Name|Project):\s*/i, '').split(/[,\n]/)[0]?.trim() || briefTypeName;
-  const clientKV = projectSection?.content.match(/(?:Client|Prospect|Name):\s*(.+)/i);
-  const clientName = clientKV ? clientKV[1].trim() : '';
-
-  // Determine SCT mode
-  const sctMode = (['lead-intake', 'discovery'].includes(briefTypeId)) ? 'client'
-    : (['production', 'post-production'].includes(briefTypeId)) ? 'brand'
-    : (briefTypeId === 'wrap-retention') ? 'dual'
-    : 'none';
-
-  // Categorize sections
-  const regular: ParsedSection[] = [];
-  const sctClient: ParsedSection[] = [];
-  const sctBrand: ParsedSection[] = [];
-  let gapsSection: ParsedSection | null = null;
-  let nextStepsSection: ParsedSection | null = null;
-  let noteSection: ParsedSection | null = null;
-
-  for (const s of sections) {
-    const clean = s.header.replace(/\s*\(SCT\)\s*/i, '').trim();
-    if (CLIENT_NARRATIVE.includes(clean)) { sctClient.push(s); }
-    else if (BRAND_SCT.includes(clean)) { sctBrand.push(s); }
-    else if (isGaps(s.header)) { gapsSection = s; }
-    else if (isNextSteps(s.header)) { nextStepsSection = s; }
-    else if (isStrategicNote(s.header)) { noteSection = s; }
-    else if (!/DELIVERY REFLECTION|REBOOKING FRAMING/i.test(s.header)) { regular.push(s); }
-  }
-
-  // ── Build HTML ──
+  const isOC = brandId === 'oakandcider';
 
   let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @font-face { font-family: 'Panton Rust'; src: url('/fonts/PantonRustHeavy-GrSh.woff2') format('woff2'); font-weight: 800; font-style: normal; }
@@ -365,23 +163,23 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
 * { margin: 0; padding: 0; box-sizing: border-box; }
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-  .no-break { page-break-inside: avoid; }
 }
 </style></head>
-<body style="width:816px;background:${t.bg};color:${t.text};font-family:${t.bodyFont};margin:0;padding:48px 48px 40px">
+<body style="width:816px;min-height:1056px;display:flex;flex-direction:column;background:${t.bg};color:${t.text};font-family:${t.bodyFont};margin:0;padding:0">
+<div style="flex:1;padding:48px 48px 0">
 `;
 
-  // ── Header ──
-  html += `<div class="pdf-header" style="margin-bottom:32px">`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">`;
+  // ── Header ──────────────────────────────────────────────────
 
-  // Logo + brand label
+  html += `<div style="margin-bottom:28px">`;
+
+  // Logo row
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">`;
   html += `<div style="display:flex;align-items:center;gap:10px">`;
   if (t.logoSrc) {
-    html += `<img src="${t.logoSrc}" style="display:block;height:${t.logoHeight}px;max-height:${t.logoHeight}px;width:auto" crossorigin="anonymous" />`;
+    html += `<img src="${t.logoSrc}" style="display:block;height:${t.logoHeight}px;width:auto" crossorigin="anonymous" />`;
     html += `<span style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:${t.textMuted}">${escapeHtml(t.brandLabel)}</span>`;
   } else {
-    // Oak & Cider styled text logo
     html += `<div style="display:flex;flex-direction:column;line-height:1">
       <span style="font-family:${t.displayFont};font-size:18px;color:${t.accent}">Oak &amp; Cider</span>
       <span style="font-size:10px;font-weight:700;letter-spacing:0.2em;color:${t.textMuted};margin-top:2px">${escapeHtml(t.brandLabel)}</span>
@@ -391,95 +189,156 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
 
   // Badge pills
   html += `<div style="display:flex;gap:8px">`;
-  if (clientName) {
-    html += `<span style="font-size:10px;font-weight:600;padding:4px 12px;border-radius:20px;background:${t.cardBg};border:1px solid ${t.cardBorder};color:${t.textMuted}">${escapeHtml(brandId === 'oakandcider' ? t.labelProspect : 'Client')}: ${escapeHtml(clientName)}</span>`;
-  }
   html += `<span style="font-size:10px;font-weight:600;padding:4px 12px;border-radius:20px;background:${addAlpha(t.accent, 0.1)};border:1px solid ${addAlpha(t.accent, 0.25)};color:${t.accent}">${escapeHtml(briefTypeName)}</span>`;
   html += `</div></div>`;
 
   // Eyebrow + Title
-  html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:8px">BRIEF</div>`;
-  html += `<div style="font-family:${t.displayFont};font-size:${t.titleSize};font-weight:800;text-transform:${t.titleTransform};letter-spacing:${t.titleSpacing};color:${t.text};margin-bottom:6px">${escapeHtml(projectName)}</div>`;
+  html += `<div style="font-family:${t.displayFont};font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:8px">BRIEF</div>`;
+  const titleTransform = isOC ? 'none' : 'uppercase';
+  const displayName = isOC ? data.projectName : data.projectName.toUpperCase();
+  html += `<div style="font-family:${t.displayFont};font-size:${t.titleSize};font-weight:800;letter-spacing:${t.titleSpacing};color:${t.text};margin-bottom:6px">${escapeHtml(displayName)}</div>`;
 
   // Subtitle
-  const subtitleText = sections.find(s => /OPPORTUNITY|PROJECT SCOPE/.test(s.header))?.content.split('\n')[0]?.trim();
-  if (subtitleText) {
-    const subtitleStyle = brandId === 'oakandcider' ? 'font-style:italic;' : '';
-    html += `<div style="font-size:13px;color:${t.textMuted};${subtitleStyle}margin-bottom:14px">${escapeHtml(subtitleText)}</div>`;
+  if (data.projectDescription) {
+    const subStyle = isOC ? 'font-style:italic;' : '';
+    html += `<div style="font-size:13px;color:${t.textMuted};${subStyle}margin-bottom:14px">${escapeHtml(data.projectDescription)}</div>`;
   }
 
-  // Summary pills
-  html += `<div style="display:flex;gap:16px;font-size:10px;color:${t.textMuted};margin-bottom:20px">`;
-  html += `<span>${escapeHtml(brandName)}</span>`;
-  html += `<span>\u00B7</span>`;
-  html += `<span>${escapeHtml(date)}</span>`;
+  // Meta line
+  html += `<div style="display:flex;gap:16px;font-size:10px;color:${t.textMuted};margin-bottom:18px">`;
+  html += `<span>${escapeHtml(brandName)}</span><span>\u00B7</span><span>${escapeHtml(date)}</span>`;
   html += `</div>`;
 
   // Separator
-  html += `<div style="height:1px;background:${t.cardBorder}"></div>`;
+  html += `<div style="height:1px;background:${addAlpha(t.accent, 0.3)}"></div>`;
   html += `</div>`;
 
-  // ── Content sections ──
-  for (const s of regular) {
-    html += renderSectionBlock(s, t);
+  // ── Context grid ────────────────────────────────────────────
+
+  if (data.context.length > 0) {
+    html += `<div style="margin-bottom:24px">`;
+    html += sectionLabel(t.labelProspect, t);
+    const cols = Math.min(data.context.length, 3);
+    html += `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:10px">`;
+    for (const kv of data.context) {
+      html += `<div style="background:${t.cardBg};border:1px solid ${t.cardBorder};border-radius:8px;padding:10px 14px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:${t.titleTransform};color:${t.accent};margin-bottom:4px">${escapeHtml(kv.label)}</div>
+        <div style="font-size:13px;font-weight:500;color:${t.text}">${escapeHtml(kv.value)}</div>
+      </div>`;
+    }
+    html += `</div></div>`;
   }
 
-  // ── SCT sections ──
-  if (sctMode === 'client' && sctClient.length > 0) {
-    html += renderSCTGroup(t.labelClientNarrative, sctClient, t);
-  } else if (sctMode === 'brand' && sctBrand.length > 0) {
-    html += renderSCTGroup('Execution Framework', sctBrand, t);
-  } else if (sctMode === 'dual') {
-    if (sctBrand.length > 0) html += renderSCTGroup('Delivery Reflection', sctBrand, t);
-    if (sctClient.length > 0) html += renderSCTGroup(t.labelClientNarrative === 'Their Story' ? 'Rebooking \u2014 Their Story' : 'Rebooking Framing', sctClient, t);
-  }
+  // ── Content sections ────────────────────────────────────────
 
-  // ── Strategic note ──
-  if (noteSection) {
-    html += `<div class="no-break pdf-section" style="margin-top:28px;padding:16px 20px;background:${t.noteBg};border-left:3px solid ${t.noteBorder};border-radius:8px">`;
-    html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.noteBorder};margin-bottom:8px">${escapeHtml(t.labelNote)}</div>`;
-    html += renderContentHtml(noteSection.content, t);
-    html += `</div>`;
-  }
+  for (const section of data.sections) {
+    html += `<div style="margin-bottom:20px">`;
+    html += sectionLabel(section.header, t);
+    html += `<div style="background:${t.cardBg};border:1px solid ${t.cardBorder};border-radius:10px;padding:16px 20px">`;
 
-  // ── Gaps ──
-  if (gapsSection) {
-    const gapLines = gapsSection.content.split('\n').map(l => l.trim()).filter(Boolean)
-      .map(l => l.replace(/^[-\u2022\u25A1\u2717\u26A0]\s*/, '').trim()).filter(Boolean);
+    if (section.body) {
+      const lines = section.body.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        html += `<p style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight};margin:3px 0">${escapeHtml(line)}</p>`;
+      }
+    }
 
-    html += `<div class="no-break pdf-section" style="margin-top:28px;padding:16px 20px;background:${t.gapsBg};border-left:4px solid ${t.accent};border-radius:8px">`;
-    html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:12px">${escapeHtml(t.labelGaps)}</div>`;
+    if (section.items && section.items.length > 0) {
+      for (const item of section.items) {
+        html += `<div style="display:flex;gap:6px;align-items:flex-start;padding:2px 0">
+          <span style="color:${t.secondary};margin-top:2px;flex-shrink:0">\u00B7</span>
+          <span style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight}">${escapeHtml(item)}</span>
+        </div>`;
+      }
+    }
 
-    if (gapLines.length > 0) {
-      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px">`;
-      for (const gap of gapLines) {
-        html += `<div style="display:flex;gap:6px;align-items:flex-start">
-          <span style="color:${t.accent};font-size:8px;margin-top:4px;flex-shrink:0">\u25CF</span>
-          <span style="font-size:13px;color:${t.text};line-height:${t.bodyLineHeight}">${escapeHtml(gap)}</span>
+    if (section.keyValues && section.keyValues.length > 0) {
+      const kvCols = Math.min(section.keyValues.length, 3);
+      html += `<div style="display:grid;grid-template-columns:repeat(${kvCols},1fr);gap:10px">`;
+      for (const kv of section.keyValues) {
+        html += `<div style="background:${addAlpha(t.text, 0.02)};border-radius:6px;padding:8px 12px">
+          <div style="font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:${t.titleTransform};color:${t.accent};margin-bottom:3px">${escapeHtml(kv.label)}</div>
+          <div style="font-size:13px;color:${t.text}">${escapeHtml(kv.value)}</div>
         </div>`;
       }
       html += `</div>`;
-    } else {
-      const checkColor = t.tertiary || t.secondary;
-      html += `<div style="font-size:13px;color:${checkColor}">\u2713 No gaps identified</div>`;
     }
+
+    if (section.checklist && section.checklist.length > 0) {
+      for (const item of section.checklist) {
+        const check = item.checked ? '\u2713' : '\u25A1';
+        const checkColor = item.checked ? (t.tertiary || t.secondary) : t.textMuted;
+        html += `<div style="display:flex;gap:8px;align-items:flex-start;padding:3px 0">
+          <span style="color:${checkColor};font-size:14px;flex-shrink:0;line-height:1.2">${check}</span>
+          <span style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight}">${escapeHtml(item.label)}</span>
+        </div>`;
+      }
+    }
+
+    html += `</div></div>`;
+  }
+
+  // ── SCT sections ────────────────────────────────────────────
+
+  if (data.sctPrimary && sctMode !== 'none') {
+    html += renderSCTGroup(data.sctPrimary.groupLabel, data.sctPrimary.blocks, t);
+  }
+  if (data.sctSecondary && sctMode === 'dual') {
+    html += renderSCTGroup(data.sctSecondary.groupLabel, data.sctSecondary.blocks, t);
+  }
+
+  // ── Strategic note ──────────────────────────────────────────
+
+  if (data.strategicNote) {
+    html += `<div style="margin-top:24px;padding:16px 20px;background:${t.noteBg};border-left:3px solid ${t.noteBorder};border-radius:0 8px 8px 0">`;
+    html += `<div style="font-size:9px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.12em'};text-transform:${t.titleTransform};color:${t.noteBorder};margin-bottom:8px">${isOC ? 'Note' : 'STRATEGIC NOTE'}</div>`;
+    html += `<p style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight}">${escapeHtml(data.strategicNote)}</p>`;
     html += `</div>`;
   }
 
-  // ── Next steps grouped by person ──
-  if (nextStepsSection) {
-    const groups = groupNextSteps(nextStepsSection.content);
-    html += `<div class="no-break pdf-section" style="margin-top:28px">`;
+  // ── Gaps ────────────────────────────────────────────────────
+
+  if (data.gaps.length > 0) {
+    html += `<div style="margin-top:24px;padding:16px 20px;background:${t.gapsBg};border-left:4px solid ${t.accent};border-radius:0 8px 8px 0">`;
+    html += `<div style="font-family:${t.displayFont};font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:12px">${escapeHtml(t.labelGaps)}</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px">`;
+    for (const gap of data.gaps) {
+      const dotColor = severityColor(gap.severity, t);
+      html += `<div style="display:flex;gap:6px;align-items:flex-start">
+        <span style="color:${dotColor};font-size:8px;margin-top:4px;flex-shrink:0">\u25CF</span>
+        <span style="font-size:13px;color:${t.text};line-height:${t.bodyLineHeight}">${escapeHtml(gap.text)}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // ── Next steps ──────────────────────────────────────────────
+
+  if (data.nextSteps.length > 0) {
+    html += `<div style="margin-top:24px">`;
     html += sectionLabel('Next Steps', t);
 
-    for (const group of groups) {
-      html += `<div style="margin-bottom:16px">`;
-      html += `<div style="font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:6px">${escapeHtml(group.owner)}</div>`;
+    // Group by owner
+    const groups = new Map<string, typeof data.nextSteps>();
+    for (const step of data.nextSteps) {
+      const owner = step.owner || 'General';
+      if (!groups.has(owner)) groups.set(owner, []);
+      groups.get(owner)!.push(step);
+    }
+
+    // Render GENERAL last
+    const orderedKeys = [...groups.keys()].filter(k => k !== 'General');
+    if (groups.has('General')) orderedKeys.push('General');
+
+    for (const owner of orderedKeys) {
+      const actions = groups.get(owner)!;
+      html += `<div style="margin-bottom:14px">`;
+      html += `<div style="font-family:${t.displayFont};font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.12em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid ${addAlpha(t.accent, 0.15)}">${escapeHtml(owner)}</div>`;
       html += `<div style="border-left:2px solid ${t.secondary};padding-left:14px">`;
-      for (const action of group.actions) {
+      for (const action of actions) {
         html += `<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0">`;
         html += `<span style="color:${addAlpha(t.accent, 0.4)};flex-shrink:0;font-size:12px">\u2192</span>`;
-        html += `<span style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight}">${escapeHtml(action.text)}</span>`;
+        html += `<span style="font-size:13px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight}">${escapeHtml(action.action)}</span>`;
         if (action.deadline) {
           const pillColor = t.tertiary || t.secondary;
           html += `<span style="font-size:9px;font-weight:600;padding:2px 8px;border-radius:10px;background:${addAlpha(pillColor, 0.12)};color:${pillColor};white-space:nowrap">${escapeHtml(action.deadline)}</span>`;
@@ -491,47 +350,39 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
     html += `</div>`;
   }
 
-  // ── Footer ──
-  html += `<div class="pdf-footer" style="margin-top:40px;padding-top:16px;border-top:1px solid ${t.cardBorder};display:flex;justify-content:space-between;align-items:center">`;
+  // Close content div
+  html += `</div>`;
+
+  // ── Footer ──────────────────────────────────────────────────
+
+  html += `<div style="padding:0 48px 40px">`;
+  html += `<div style="padding-top:16px;border-top:1px solid ${t.cardBorder};display:flex;justify-content:space-between;align-items:center">`;
   html += `<span style="font-size:10px;color:${t.textMuted}">Generated by EPA \u00B7 ${escapeHtml(brandName)} \u00B7 ${escapeHtml(date)}</span>`;
   const tagFont = t.footerTaglineFont || t.bodyFont;
   const tagTransform = t.footerTaglineFont ? 'none' : 'uppercase';
-  const tagStyle = t.footerTaglineFont ? 'font-style:italic;' : '';
-  html += `<span style="font-family:${tagFont};font-size:10px;font-weight:700;text-transform:${tagTransform};${tagStyle}color:${t.accent}">${escapeHtml(t.footerTagline)}</span>`;
-  html += `</div>`;
+  const tagItalic = t.footerTaglineFont ? 'font-style:italic;' : '';
+  html += `<span style="font-family:${tagFont};font-size:10px;font-weight:700;text-transform:${tagTransform};${tagItalic}color:${t.accent}">${escapeHtml(t.footerTagline)}</span>`;
+  html += `</div></div>`;
 
   html += `</body></html>`;
   return html;
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── SCT group renderer ────────────────────────────────────────
 
-function sectionLabel(label: string, t: BrandTheme): string {
-  return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <span style="font-family:${t.displayFont};font-size:10px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.14em'};text-transform:${t.titleTransform};color:${t.accent};white-space:nowrap">${escapeHtml(label)}</span>
-    <div style="flex:1;height:1px;background:${t.cardBorder}"></div>
-  </div>`;
-}
-
-function renderSectionBlock(s: ParsedSection, t: BrandTheme): string {
-  let html = `<div class="no-break pdf-section" style="margin-top:24px">`;
-  html += sectionLabel(s.header, t);
-  html += `<div style="background:${t.cardBg};border:1px solid ${t.cardBorder};border-radius:10px;padding:16px 20px">`;
-  html += renderContentHtml(s.content, t);
-  html += `</div></div>`;
-  return html;
-}
-
-function renderSCTGroup(groupLabel: string, sections: ParsedSection[], t: BrandTheme): string {
-  let html = `<div class="no-break pdf-section" style="margin-top:28px">`;
+function renderSCTGroup(groupLabel: string, blocks: { label: string; content: string }[], t: BrandTheme): string {
+  let html = `<div style="margin-top:24px">`;
   html += sectionLabel(groupLabel, t);
   html += `<div style="display:flex;gap:12px">`;
 
-  for (const s of sections) {
-    const cleanLabel = s.header.replace(/\s*\(SCT\)\s*/i, '');
+  for (const block of blocks) {
     html += `<div style="flex:1;border-left:3px solid ${t.accent};background:${t.cardBg};border-radius:0 8px 8px 0;padding:14px 16px 14px 18px">`;
-    html += `<div style="font-size:9px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.12em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:8px">${escapeHtml(cleanLabel)}</div>`;
-    html += renderContentHtml(s.content, t);
+    html += `<div style="font-size:9px;font-weight:700;letter-spacing:${t.titleTransform === 'none' ? '0.05em' : '0.12em'};text-transform:${t.titleTransform};color:${t.accent};margin-bottom:8px">${escapeHtml(block.label)}</div>`;
+    // Render content paragraphs
+    const lines = block.content.split('\n').filter(l => l.trim());
+    for (const line of lines) {
+      html += `<p style="font-size:12px;color:${addAlpha(t.text, 0.75)};line-height:${t.bodyLineHeight};margin:2px 0">${escapeHtml(line)}</p>`;
+    }
     html += `</div>`;
   }
 

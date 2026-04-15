@@ -1,11 +1,4 @@
-export type BriefType = {
-  id: string;
-  name: string;
-  emoji: string;
-  description: string;
-  placeholder: string;
-  systemPrompt: string;
-};
+import type { BriefTypeConfig } from '@/types/brief-schema';
 
 import { leadIntake } from './lead-intake';
 import { discovery } from './discovery';
@@ -14,7 +7,9 @@ import { postProduction } from './post-production';
 import { wrapRetention } from './wrap-retention';
 import { archive } from './archive';
 
-export const briefTypes: Record<string, BriefType> = {
+export type BriefType = BriefTypeConfig;
+
+export const briefTypes: Record<string, BriefTypeConfig> = {
   'lead-intake': leadIntake,
   'discovery': discovery,
   'production': production,
@@ -23,7 +18,7 @@ export const briefTypes: Record<string, BriefType> = {
   'archive': archive,
 };
 
-export const briefTypesList: BriefType[] = [
+export const briefTypesList: BriefTypeConfig[] = [
   leadIntake,
   discovery,
   production,

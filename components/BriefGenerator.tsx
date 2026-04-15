@@ -2,22 +2,22 @@
 
 import { useState } from 'react';
 import { useBrand } from '@/context/BrandContext';
-import type { BriefType } from '@/lib/briefs';
+import type { BriefTypeConfig } from '@/types/brief-schema';
+import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
 import Toast from './ui/Toast';
 
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 
-export default function BriefGenerator({ briefType }: { briefType: BriefType }) {
+export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
   const { brandId, activeBrand } = useBrand();
   const [input, setInput] = useState('');
-  const [brief, setBrief] = useState<string | null>(null);
-  const [gaps, setGaps] = useState<string[]>([]);
+  const [briefData, setBriefData] = useState<BriefSchema | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>('idle');
 
-  const saveToPipeline = async (briefText: string, briefGaps: string[]) => {
+  const saveToPipeline = async (data: BriefSchema) => {
     setPipelineStatus('saving');
     try {
       const res = await fetch('/api/sheets', {
@@ -29,8 +29,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
           briefType: briefType.id,
           briefTypeName: briefType.name,
           rawInput: input,
-          briefOutput: briefText,
-          gaps: briefGaps,
+          briefOutput: JSON.stringify(data),
+          gaps: data.gaps.map(g => g.text),
         }),
       });
       if (!res.ok) throw new Error('Sheet write failed');
@@ -45,8 +45,7 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
 
     setLoading(true);
     setError(null);
-    setBrief(null);
-    setGaps([]);
+    setBriefData(null);
     setPipelineStatus('idle');
 
     try {
@@ -62,12 +61,12 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
 
       if (!res.ok) throw new Error('Failed to generate brief');
 
-      const data = await res.json();
-      setBrief(data.brief);
-      setGaps(data.gaps || []);
+      const responseData = await res.json();
+      const data: BriefSchema = responseData.brief;
+      setBriefData(data);
 
       // Fire background pipeline save
-      saveToPipeline(data.brief, data.gaps || []);
+      saveToPipeline(data);
     } catch {
       setError('Failed to generate brief. Please try again.');
     } finally {
@@ -76,8 +75,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
   };
 
   const handleRetryPipeline = () => {
-    if (brief) {
-      saveToPipeline(brief, gaps);
+    if (briefData) {
+      saveToPipeline(briefData);
     }
   };
 
@@ -112,17 +111,16 @@ export default function BriefGenerator({ briefType }: { briefType: BriefType }) 
         </div>
       </div>
 
-      {brief && (
+      {briefData && (
         <>
           <BriefOutput
-            brief={brief}
-            gaps={gaps}
+            data={briefData}
             brandId={brandId}
             brandName={activeBrand.name}
             brandTagline={activeBrand.tagline}
             accentColor={activeBrand.accentColor}
             briefTypeName={briefType.name}
-            briefTypeId={briefType.id}
+            sctMode={briefType.sctMode}
           />
 
           {/* Pipeline status indicator */}
