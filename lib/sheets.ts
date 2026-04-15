@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import type { BriefSchema } from '@/types/brief-schema';
 
 // ── Auth ──────────────────────────────────────────────────────
 
@@ -21,102 +22,17 @@ function getAuth() {
   return { auth, spreadsheetId };
 }
 
-// ── Field extraction ──────────────────────────────────────────
-
-function normalizeBrief(text: string): string {
-  return text
-    .replace(/^#{1,4}\s+(.+?)\s*$/gm, (_, h) => {
-      const upper = h.replace(/\*{2}/g, '').replace(/:\s*$/, '').trim();
-      return upper.toUpperCase() === upper ? `${upper}:` : h;
-    })
-    .replace(/^\*{2}([A-Z][A-Z\s&\/()\u2014-]+?)\*{2}:?\s*$/gm, '$1:')
-    .replace(/\*{2}([^*]+?)\*{2}/g, '$1')
-    .replace(/__([^_]+?)__/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^\s*\*\s+/gm, '- ')
-    .replace(/\n{3,}/g, '\n\n');
-}
-
-function extractAfterHeader(text: string, pattern: RegExp): string {
-  const normalized = normalizeBrief(text);
-  const match = normalized.match(pattern);
-  if (!match) return '';
-  const startIdx = match.index! + match[0].length;
-  const rest = normalized.slice(startIdx);
-  // Take content until the next section header
-  const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()\u2014-]+:/);
-  const content = nextHeader ? rest.slice(0, nextHeader.index!) : rest;
-  return content.trim().split('\n')[0]?.trim() || '';
-}
-
-function extractSection(text: string, pattern: RegExp): string[] {
-  const normalized = normalizeBrief(text);
-  const match = normalized.match(pattern);
-  if (!match) return [];
-  const startIdx = match.index! + match[0].length;
-  const rest = normalized.slice(startIdx);
-  const nextHeader = rest.match(/\n[A-Z][A-Z\s&\/()\u2014-]+:/);
-  const content = nextHeader ? rest.slice(0, nextHeader.index!) : rest;
-  return content
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .map((l) => l.replace(/^[-\u2022\u25A1\u2713\u2717\u26A0]\s*/, '').trim())
-    .filter(Boolean);
-}
-
-export function extractFields(briefOutput: string) {
-  const projectName =
-    extractAfterHeader(briefOutput, /PROJECT:\s*/i) || 'Untitled';
-
-  const clientName =
-    extractAfterHeader(briefOutput, /PROSPECT:\s*/i) ||
-    extractAfterHeader(briefOutput, /CLIENT:\s*/i) ||
-    'Unknown';
-
-  const gaps = extractSection(briefOutput, /GAPS[:\s]*\n/i);
-
-  const nextSteps = extractSection(
-    briefOutput,
-    /(?:RECOMMENDED\s+)?NEXT\s+STEPS[:\s]*\n/i
-  );
-
-  // Revenue: scan for dollar amounts or budget keywords
-  const dollarMatches = briefOutput.match(/\$[\d,]+(?:\.\d{2})?(?:\s*[kKmM])?/g);
-  const budgetLine = briefOutput.match(/(?:budget|rate|pricing)[:\s]+([^\n]+)/i);
-  const revenue = dollarMatches
-    ? dollarMatches.join(', ')
-    : budgetLine
-      ? budgetLine[1].trim()
-      : 'Unknown';
-
-  // Follow-up date extraction
-  const followUpMatch = briefOutput.match(
-    /(?:follow[- ]?up|check[- ]?in|deadline|due)[:\s]+([^\n]{5,60})/i
-  );
-  const followUpDate = followUpMatch ? followUpMatch[1].trim() : '';
-
-  return {
-    projectName: projectName.slice(0, 200),
-    clientName: clientName.slice(0, 200),
-    gaps: gaps.join(', ').slice(0, 2000),
-    nextSteps: nextSteps.join('; ').slice(0, 2000),
-    revenue: revenue.slice(0, 200),
-    followUpDate: followUpDate.slice(0, 100),
-  };
-}
-
 // ── Sheet write ───────────────────────────────────────────────
 
 export type BriefSheetData = {
   brandName: string;
   briefType: string;
+  briefTypeName: string;
   rawInput: string;
-  briefOutput: string;
-  gaps: string[];
+  data: BriefSchema;
 };
 
-export async function writeBriefToSheet(data: BriefSheetData): Promise<{ success: boolean; briefId: string }> {
+export async function writeBriefToSheet(input: BriefSheetData): Promise<{ success: boolean; briefId: string }> {
   const config = getAuth();
   if (!config) {
     console.warn('[Sheets] Skipping write — not configured');
@@ -128,24 +44,64 @@ export async function writeBriefToSheet(data: BriefSheetData): Promise<{ success
 
   const briefId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
-  const extracted = extractFields(data.briefOutput);
+  const { data } = input;
+
+  // Extract client/prospect name from context
+  const clientEntry = data.context.find(c =>
+    /^(prospect|client|name|couple)/i.test(c.label)
+  );
+  const clientName = clientEntry?.value || '';
+
+  // Count gaps by severity
+  const criticalGaps = data.gaps.filter(g => g.severity === 'critical').length;
+  const totalGaps = data.gaps.length;
+
+  // Summarize gaps as readable text
+  const gapsSummary = data.gaps
+    .map(g => `[${g.severity || 'moderate'}] ${g.text}`)
+    .join(' | ')
+    .slice(0, 2000);
+
+  // Summarize next steps as readable text
+  const nextStepsSummary = data.nextSteps
+    .map(s => {
+      const dl = s.deadline ? ` (${s.deadline})` : '';
+      return `${s.owner}: ${s.action}${dl}`;
+    })
+    .join(' | ')
+    .slice(0, 2000);
+
+  // Extract unique owners
+  const owners = Array.from(new Set(data.nextSteps.map(s => s.owner))).join(', ');
+
+  // Budget indicator from context
+  const budgetEntry = data.context.find(c =>
+    /budget|rate|pricing|cost/i.test(c.label)
+  );
+  const budget = budgetEntry?.value || '';
+
+  // Timeline from context
+  const timelineEntry = data.context.find(c =>
+    /timeline|deadline|date|delivery/i.test(c.label)
+  );
+  const timeline = timelineEntry?.value || '';
 
   const row = [
-    timestamp,                                           // A: Timestamp
-    briefId,                                             // B: Brief ID
-    data.brandName,                                      // C: Brand
-    data.briefType,                                      // D: Brief Type
-    extracted.projectName,                               // E: Project Name
-    extracted.clientName,                                 // F: Client/Prospect Name
-    'EPA User',                                          // G: Submitted By
-    'Generated',                                         // H: Status
-    data.rawInput.slice(0, 5000),                        // I: Raw Input
-    data.briefOutput.slice(0, 10000),                    // J: Brief Output
-    extracted.gaps || data.gaps.join(', ').slice(0, 2000), // K: Gaps Flagged
-    extracted.nextSteps,                                 // L: Next Steps
-    extracted.revenue,                                   // M: Revenue Indicator
-    extracted.followUpDate,                              // N: Follow-Up Date
-    '',                                                  // O: Notes
+    timestamp,                    // A: Date
+    input.brandName,              // B: Brand
+    input.briefTypeName,          // C: Brief Type
+    data.projectName,             // D: Project
+    clientName,                   // E: Client
+    'Generated',                  // F: Status
+    criticalGaps.toString(),      // G: Critical Gaps
+    totalGaps.toString(),         // H: Total Gaps
+    owners,                       // I: Owner(s)
+    budget,                       // J: Budget
+    timeline,                     // K: Timeline
+    gapsSummary,                  // L: Gaps Detail
+    nextStepsSummary,             // M: Next Steps Detail
+    data.projectDescription || '',// N: Description
+    briefId,                      // O: Brief ID
   ];
 
   await sheets.spreadsheets.values.append({

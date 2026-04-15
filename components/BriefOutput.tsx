@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { buildPDFHTML } from './BriefPDFTemplate';
 import type { BriefSchema, SCTMode } from '@/types/brief-schema';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -100,83 +99,24 @@ export default function BriefOutput({
     setGeneratingPDF(true);
     setPdfError(false);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-
-      const htmlContent = buildPDFHTML({
-        data,
-        brandId,
-        brandName,
-        briefTypeName,
-        sctMode,
+      const res = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data, brandId, brandName, briefTypeName, sctMode }),
       });
 
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-      const bodyEl = doc.body;
-      const styleEl = doc.querySelector('style');
+      if (!res.ok) throw new Error('PDF generation failed');
 
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-9999px';
-      container.style.top = '0';
-      container.style.width = '816px';
-
-      if (styleEl) {
-        const s = document.createElement('style');
-        s.textContent = styleEl.textContent;
-        container.appendChild(s);
-      }
-
-      const wrapper = document.createElement('div');
-      wrapper.setAttribute('style', bodyEl.getAttribute('style') || '');
-      wrapper.innerHTML = bodyEl.innerHTML;
-      container.appendChild(wrapper);
-
-      document.body.appendChild(container);
-
-      await document.fonts.ready;
-
-      const images = container.querySelectorAll('img');
-      if (images.length > 0) {
-        await Promise.all(
-          Array.from(images).map(
-            (img) =>
-              new Promise<void>((resolve) => {
-                if (img.complete) return resolve();
-                img.onload = () => resolve();
-                img.onerror = () => resolve();
-              })
-          )
-        );
-      }
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      const bgColor = brandId === 'tourbus' ? '#F5F0E8'
-        : brandId === 'oakandcider' ? '#FAF6F0'
-        : '#0D0D0D';
-
-      const slug = brandName.replace(/\s+/g, '-').replace(/&/g, '');
-      const dateStr = new Date().toISOString().split('T')[0];
-      const filename = `${slug}_${briefTypeName.replace(/\s+/g, '-')}_${dateStr}.pdf`;
-
-      await html2pdf().set({
-        margin: 0,
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          backgroundColor: bgColor,
-          useCORS: true,
-          logging: false,
-        },
-        jsPDF: {
-          unit: 'in',
-          format: 'letter',
-          orientation: 'portrait' as const,
-        },
-      }).from(wrapper).save();
-
-      document.body.removeChild(container);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1]
+        || `${brandName.replace(/\s+/g, '-')}_${briefTypeName.replace(/\s+/g, '-')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF generation failed:', err);
       setPdfError(true);
