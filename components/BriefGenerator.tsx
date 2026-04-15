@@ -9,6 +9,8 @@ import IntakeForm from './IntakeForm';
 import DiscoveryForm from './DiscoveryForm';
 import ProductionForm from './ProductionForm';
 import PostProductionForm from './PostProductionForm';
+import WrapRetentionForm from './WrapRetentionForm';
+import ArchiveForm from './ArchiveForm';
 import Toast from './ui/Toast';
 
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
@@ -19,6 +21,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
   const isDiscovery = briefType.id === 'discovery';
   const isProduction = briefType.id === 'production';
   const isPostProduction = briefType.id === 'post-production';
+  const isWrapRetention = briefType.id === 'wrap-retention';
+  const isArchive = briefType.id === 'archive';
   const [input, setInput] = useState('');
   const handleFormChange = useCallback((value: string) => setInput(value), []);
   const [briefData, setBriefData] = useState<BriefSchema | null>(null);
@@ -101,6 +105,10 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
           <ProductionForm onInputChange={handleFormChange} disabled={loading} />
         ) : isPostProduction ? (
           <PostProductionForm onInputChange={handleFormChange} disabled={loading} />
+        ) : isWrapRetention ? (
+          <WrapRetentionForm onInputChange={handleFormChange} disabled={loading} />
+        ) : isArchive ? (
+          <ArchiveForm onInputChange={handleFormChange} disabled={loading} />
         ) : (
           <textarea
             className="glass-input w-full min-h-[200px] p-4 text-sm resize-y"
