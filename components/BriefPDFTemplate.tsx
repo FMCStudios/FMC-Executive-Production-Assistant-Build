@@ -165,8 +165,8 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 }
 </style></head>
-<body style="width:816px;min-height:1056px;display:flex;flex-direction:column;background:${t.bg};color:${t.text};font-family:${t.bodyFont};margin:0;padding:0">
-<div style="flex:1;padding:48px 48px 0">
+<body style="width:816px;background:${t.bg};color:${t.text};font-family:${t.bodyFont};margin:0;padding:0">
+<div style="padding:48px 48px 0">
 `;
 
   // ── Header ──────────────────────────────────────────────────
@@ -327,7 +327,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
     }
 
     // Render GENERAL last
-    const orderedKeys = Array.from(groups.keys()).filter(k => k !== 'General');
+    const orderedKeys = [...groups.keys()].filter(k => k !== 'General');
     if (groups.has('General')) orderedKeys.push('General');
 
     for (const owner of orderedKeys) {
