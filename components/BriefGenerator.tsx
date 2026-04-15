@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useOperator } from '@/context/OperatorContext';
 import type { BriefTypeConfig } from '@/types/brief-schema';
 import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
+import IntakeForm from './IntakeForm';
 import Toast from './ui/Toast';
 
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 
 export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
   const { operatorId } = useOperator();
+  const isIntake = briefType.id === 'lead-intake';
   const [input, setInput] = useState('');
+  const handleIntakeChange = useCallback((value: string) => setInput(value), []);
   const [briefData, setBriefData] = useState<BriefSchema | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,13 +87,17 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
   return (
     <div>
       <div className={`glass-panel p-6 ${loading ? 'animate-pulse' : ''}`}>
-        <textarea
-          className="glass-input w-full min-h-[200px] p-4 text-sm resize-y"
-          placeholder={briefType.placeholder}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={loading}
-        />
+        {isIntake ? (
+          <IntakeForm onInputChange={handleIntakeChange} disabled={loading} />
+        ) : (
+          <textarea
+            className="glass-input w-full min-h-[200px] p-4 text-sm resize-y"
+            placeholder={briefType.placeholder}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={loading}
+          />
+        )}
         <div className="mt-4 flex justify-end">
           <button
             className="btn-firestarter px-6 py-3 text-sm flex items-center gap-2"
