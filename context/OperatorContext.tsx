@@ -12,7 +12,7 @@ type OperatorContextType = {
 const OperatorContext = createContext<OperatorContextType | undefined>(undefined);
 
 export function OperatorProvider({ children }: { children: ReactNode }) {
-  const [operatorId, setOperatorId] = useState('brandon');
+  const [operatorId, setOperatorId] = useState('sp');
 
   useEffect(() => {
     const stored = localStorage.getItem('epa-operator');
@@ -28,7 +28,7 @@ export function OperatorProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const activeOperator = operators[operatorId] || operators.brandon;
+  const activeOperator = operators[operatorId] || operators.sp;
 
   return (
     <OperatorContext.Provider value={{ activeOperator, setOperator: setOp, operatorId }}>

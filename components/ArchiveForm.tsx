@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import VoiceMic from './VoiceMic';
 
 type ArchiveFields = {
   finalsSent: string;
@@ -112,7 +113,10 @@ export default function ArchiveForm({
         <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Delivery Log</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">Finals sent</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">Finals sent</label>
+              <VoiceMic onTranscript={(t) => set('finalsSent', fields.finalsSent ? fields.finalsSent + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -303,7 +307,10 @@ export default function ArchiveForm({
             </select>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">Best clips / moments</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">Best clips / moments</label>
+              <VoiceMic onTranscript={(t) => set('bestClips', fields.bestClips ? fields.bestClips + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}

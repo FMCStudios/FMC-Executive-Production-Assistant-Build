@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import VoiceMic from './VoiceMic';
 
 type IntakeFields = {
   clientName: string;
@@ -120,7 +121,10 @@ export default function IntakeForm({
 
       {/* Row 3: What they need */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they think they need</label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they think they need</label>
+          <VoiceMic onTranscript={(t) => set('need', fields.need ? fields.need + ' ' + t : t)} disabled={disabled} />
+        </div>
         <textarea
           className="glass-input w-full px-3 py-2.5 text-sm resize-none"
           rows={2}

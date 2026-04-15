@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import VoiceMic from './VoiceMic';
 
 type DiscoveryFields = {
   whatTheySaid: string;
@@ -92,7 +93,10 @@ export default function DiscoveryForm({
     <div className="space-y-6">
       {/* Section 1: What they said */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they said</label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they said</label>
+          <VoiceMic onTranscript={(t) => set('whatTheySaid', fields.whatTheySaid ? fields.whatTheySaid + ' ' + t : t)} disabled={disabled} />
+        </div>
         <textarea
           className="glass-input w-full px-3 py-2.5 text-sm resize-y min-h-[80px]"
           placeholder="Client's exact words — what did they ask for?"
@@ -104,7 +108,10 @@ export default function DiscoveryForm({
 
       {/* Section 2: What they need */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they need</label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they need</label>
+          <VoiceMic onTranscript={(t) => set('whatTheyNeed', fields.whatTheyNeed ? fields.whatTheyNeed + ' ' + t : t)} disabled={disabled} />
+        </div>
         <textarea
           className="glass-input w-full px-3 py-2.5 text-sm resize-y min-h-[80px]"
           placeholder="Your diagnosis — what do they actually need?"
@@ -119,7 +126,10 @@ export default function DiscoveryForm({
         <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-3">SCT Framework</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-fmc-teal/70 font-medium">Situation</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-fmc-teal/70 font-medium">Situation</label>
+              <VoiceMic onTranscript={(t) => set('situation', fields.situation ? fields.situation + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -130,7 +140,10 @@ export default function DiscoveryForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-fmc-teal/70 font-medium">Challenge</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-fmc-teal/70 font-medium">Challenge</label>
+              <VoiceMic onTranscript={(t) => set('challenge', fields.challenge ? fields.challenge + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -141,7 +154,10 @@ export default function DiscoveryForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-fmc-teal/70 font-medium">Transformation</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-fmc-teal/70 font-medium">Transformation</label>
+              <VoiceMic onTranscript={(t) => set('transformation', fields.transformation ? fields.transformation + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}

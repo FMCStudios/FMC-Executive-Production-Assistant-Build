@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import VoiceMic from './VoiceMic';
 
 type WrapFields = {
   satisfaction: string;
@@ -149,7 +150,10 @@ export default function WrapRetentionForm({
             </select>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">What surprised them?</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">What surprised them?</label>
+              <VoiceMic onTranscript={(t) => set('surprised', fields.surprised ? fields.surprised + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -160,7 +164,10 @@ export default function WrapRetentionForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">What could we improve?</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">What could we improve?</label>
+              <VoiceMic onTranscript={(t) => set('improve', fields.improve ? fields.improve + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -215,7 +222,10 @@ export default function WrapRetentionForm({
         <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Internal Debrief</span>
         <div className="space-y-4">
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">What went well</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">What went well</label>
+              <VoiceMic onTranscript={(t) => set('wentWell', fields.wentWell ? fields.wentWell + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -226,7 +236,10 @@ export default function WrapRetentionForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">What leaked time / energy</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">What leaked time / energy</label>
+              <VoiceMic onTranscript={(t) => set('leakedTime', fields.leakedTime ? fields.leakedTime + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -237,7 +250,10 @@ export default function WrapRetentionForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">Scope creep</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">Scope creep</label>
+              <VoiceMic onTranscript={(t) => set('scopeCreep', fields.scopeCreep ? fields.scopeCreep + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}
@@ -255,7 +271,10 @@ export default function WrapRetentionForm({
         <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Retention Trigger</span>
         <div className="space-y-4">
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-white/40 font-medium">Next project idea</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/40 font-medium">Next project idea</label>
+              <VoiceMic onTranscript={(t) => set('nextProject', fields.nextProject ? fields.nextProject + ' ' + t : t)} disabled={disabled} />
+            </div>
             <textarea
               className="glass-input w-full px-3 py-2.5 text-sm resize-none"
               rows={2}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import VoiceMic from './VoiceMic';
 
 type ModuleKey = 'technical' | 'assets' | 'paperEdit' | 'creativeDirection' | 'deliverables' | 'timeline';
 
@@ -133,9 +134,12 @@ export default function PostProductionForm({
             }}
           >
             <div className="flex flex-col gap-2">
-              <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">
-                {mod.label}
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">
+                  {mod.label}
+                </label>
+                <VoiceMic onTranscript={(t) => setValue(mod.key, values[mod.key] ? values[mod.key] + ' ' + t : t)} disabled={disabled} />
+              </div>
               <textarea
                 className="glass-input w-full px-3 py-2.5 text-sm resize-y min-h-[80px]"
                 placeholder={mod.placeholder}
