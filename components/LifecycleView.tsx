@@ -125,25 +125,45 @@ export default function LifecycleView() {
             {/* Hinge divider between phase 2 and 3 */}
             {showHinge && (
               <div
-                className="flex items-center gap-3 py-5 opacity-0 animate-fadeUp"
+                className="py-5 opacity-0 animate-fadeUp"
                 style={{ animationDelay: `${(index) * 60}ms` }}
               >
-                <div className="flex-1 h-px bg-fmc-copper/30" />
-                <div className="flex items-center gap-2 px-4 py-1.5 rounded-full"
-                  style={{
-                    background: 'rgba(180,95,52,0.08)',
-                    border: '1px solid rgba(180,95,52,0.2)',
-                  }}
-                >
-                  <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-copper/70">
-                    handshake
-                  </span>
-                  <span className="text-fmc-copper/40 text-[10px]">&mdash;</span>
-                  <span className="text-[10px] font-medium tracking-wide text-fmc-copper/50">
-                    SCT flips to strategy &middot; creative &middot; tactics
+                {/* Top: S·C·T with up arrow */}
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-fmc-teal/50">
+                    <path d="M12 19V5M5 12l7-7 7 7" />
+                  </svg>
+                  <span className="text-[10px] font-medium tracking-wide text-fmc-teal/60">
+                    situation &middot; challenge &middot; transformation
                   </span>
                 </div>
-                <div className="flex-1 h-px bg-fmc-copper/30" />
+
+                {/* Center: handshake pill with lines */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-fmc-copper/30" />
+                  <div
+                    className="px-4 py-1.5 rounded-full"
+                    style={{
+                      background: 'rgba(180,95,52,0.08)',
+                      border: '1px solid rgba(180,95,52,0.2)',
+                    }}
+                  >
+                    <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-copper/70">
+                      handshake
+                    </span>
+                  </div>
+                  <div className="flex-1 h-px bg-fmc-copper/30" />
+                </div>
+
+                {/* Bottom: S·C·T with down arrow */}
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-fmc-copper/50">
+                    <path d="M12 5v14M5 12l7 7 7-7" />
+                  </svg>
+                  <span className="text-[10px] font-medium tracking-wide text-fmc-copper/60">
+                    strategy &middot; creative &middot; tactics
+                  </span>
+                </div>
               </div>
             )}
 

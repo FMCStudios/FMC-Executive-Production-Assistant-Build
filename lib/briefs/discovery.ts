@@ -2,7 +2,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 
 export const discovery: BriefTypeConfig = {
   id: 'discovery',
-  name: 'Discovery',
+  name: 'Discovery Call',
   phase: 2,
   emoji: '\uD83D\uDD0D',
   tagline: 'they want a quote',

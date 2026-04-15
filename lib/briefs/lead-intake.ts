@@ -2,7 +2,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 
 export const leadIntake: BriefTypeConfig = {
   id: 'lead-intake',
-  name: 'Intake',
+  name: 'Lead Intake',
   phase: 1,
   emoji: '\uD83C\uDFAF',
   tagline: 'we might have a new client',
