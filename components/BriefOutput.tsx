@@ -413,7 +413,7 @@ export default function BriefOutput({
             if (!groups.has(owner)) groups.set(owner, []);
             groups.get(owner)!.push(step);
           }
-          const orderedKeys = [...groups.keys()].filter(k => k !== 'General');
+          const orderedKeys = Array.from(groups.keys()).filter(k => k !== 'General');
           if (groups.has('General')) orderedKeys.push('General');
 
           return (
