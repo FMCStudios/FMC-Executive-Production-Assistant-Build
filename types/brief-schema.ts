@@ -68,8 +68,10 @@ export type SCTMode = 'situation-challenge-transformation' | 'strategy-creative-
 export type BriefTypeConfig = {
   id: string;
   name: string;
+  phase: number;
   emoji: string;
   description: string;
+  tagline: string;
   placeholder: string;
   sctMode: SCTMode;
   systemPrompt: string;

@@ -3,7 +3,7 @@ import { writeBriefToSheet } from '@/lib/sheets';
 
 export async function POST(req: Request) {
   try {
-    const { brandName, briefType, briefTypeName, rawInput, briefOutput, gaps } = await req.json();
+    const { brandName, briefType, briefTypeName, phase, operatorId, rawInput, briefOutput } = await req.json();
 
     if (!briefOutput) {
       return NextResponse.json(
@@ -16,9 +16,11 @@ export async function POST(req: Request) {
     const data = typeof briefOutput === 'string' ? JSON.parse(briefOutput) : briefOutput;
 
     const result = await writeBriefToSheet({
-      brandName: brandName || 'Unknown',
+      brandName: brandName || 'FMC Studios',
       briefType: briefType || 'unknown',
       briefTypeName: briefTypeName || briefType || 'unknown',
+      phase: phase || 0,
+      operatorId: operatorId || 'unknown',
       rawInput: rawInput || '',
       data,
     });

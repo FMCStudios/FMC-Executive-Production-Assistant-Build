@@ -28,6 +28,8 @@ export type BriefSheetData = {
   brandName: string;
   briefType: string;
   briefTypeName: string;
+  phase: number;
+  operatorId: string;
   rawInput: string;
   data: BriefSchema;
 };
@@ -87,26 +89,28 @@ export async function writeBriefToSheet(input: BriefSheetData): Promise<{ succes
   const timeline = timelineEntry?.value || '';
 
   const row = [
-    timestamp,                    // A: Date
-    input.brandName,              // B: Brand
-    input.briefTypeName,          // C: Brief Type
-    data.projectName,             // D: Project
-    clientName,                   // E: Client
-    'Generated',                  // F: Status
-    criticalGaps.toString(),      // G: Critical Gaps
-    totalGaps.toString(),         // H: Total Gaps
-    owners,                       // I: Owner(s)
-    budget,                       // J: Budget
-    timeline,                     // K: Timeline
-    gapsSummary,                  // L: Gaps Detail
-    nextStepsSummary,             // M: Next Steps Detail
-    data.projectDescription || '',// N: Description
-    briefId,                      // O: Brief ID
+    timestamp,                      // A: Date
+    input.brandName,                // B: Brand
+    input.briefTypeName,            // C: Brief Type
+    input.phase.toString(),         // D: Phase
+    input.operatorId,               // E: Operator
+    data.projectName,               // F: Project
+    clientName,                     // G: Client
+    'Generated',                    // H: Status
+    criticalGaps.toString(),        // I: Critical Gaps
+    totalGaps.toString(),           // J: Total Gaps
+    owners,                         // K: Owner(s)
+    budget,                         // L: Budget
+    timeline,                       // M: Timeline
+    gapsSummary,                    // N: Gaps Detail
+    nextStepsSummary,               // O: Next Steps Detail
+    data.projectDescription || '',  // P: Description
+    briefId,                        // Q: Brief ID
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'Pipeline!A:O',
+    range: 'Pipeline!A:Q',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });

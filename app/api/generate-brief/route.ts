@@ -1,28 +1,36 @@
 import { NextResponse } from 'next/server';
 import { brands } from '@/lib/brands';
 import { briefTypes } from '@/lib/briefs';
+import { operators } from '@/lib/operators';
 import { generateBrief } from '@/lib/api';
 
 export async function POST(req: Request) {
   try {
-    const { brandId, briefType, rawInput } = await req.json();
+    const { briefType, operatorId, rawInput } = await req.json();
 
-    if (!brandId || !briefType || !rawInput) {
+    if (!briefType || !rawInput) {
       return NextResponse.json(
-        { error: 'Missing required fields: brandId, briefType, rawInput' },
+        { error: 'Missing required fields: briefType, rawInput' },
         { status: 400 }
       );
     }
 
-    const brand = brands[brandId];
     const brief = briefTypes[briefType];
-
-    if (!brand || !brief) {
+    if (!brief) {
       return NextResponse.json(
-        { error: 'Invalid brand or brief type' },
+        { error: 'Invalid brief type' },
         { status: 400 }
       );
     }
+
+    // Always FMC brand
+    const brand = brands.fmc;
+
+    // Resolve operator context (falls back to no extra context)
+    const operator = operatorId ? operators[operatorId] : null;
+    const operatorContext = operator?.systemPromptContext
+      ? `\n\nOPERATOR CONTEXT:\n${operator.systemPromptContext}`
+      : '';
 
     const systemPrompt = `${brief.systemPrompt}
 
@@ -32,7 +40,7 @@ Tagline: ${brand.tagline}
 Voice: ${brand.voice}
 Services: ${brand.services}
 SCT Framing: ${brand.sctFraming}
-Tone Instruction: ${brand.briefToneInstruction}`;
+Tone Instruction: ${brand.briefToneInstruction}${operatorContext}`;
 
     const briefData = await generateBrief(systemPrompt, rawInput);
 

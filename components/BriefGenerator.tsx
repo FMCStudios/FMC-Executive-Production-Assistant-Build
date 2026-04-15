@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useBrand } from '@/context/BrandContext';
+import { useOperator } from '@/context/OperatorContext';
 import type { BriefTypeConfig } from '@/types/brief-schema';
 import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
@@ -10,7 +10,7 @@ import Toast from './ui/Toast';
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 
 export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
-  const { brandId, activeBrand } = useBrand();
+  const { operatorId } = useOperator();
   const [input, setInput] = useState('');
   const [briefData, setBriefData] = useState<BriefSchema | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,10 +24,11 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          brandId,
-          brandName: activeBrand.name,
+          brandName: 'FMC Studios',
           briefType: briefType.id,
           briefTypeName: briefType.name,
+          phase: briefType.phase,
+          operatorId,
           rawInput: input,
           briefOutput: JSON.stringify(data),
           gaps: data.gaps.map(g => g.text),
@@ -53,8 +54,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          brandId,
           briefType: briefType.id,
+          operatorId,
           rawInput: input,
         }),
       });
@@ -115,10 +116,10 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
         <>
           <BriefOutput
             data={briefData}
-            brandId={brandId}
-            brandName={activeBrand.name}
-            brandTagline={activeBrand.tagline}
-            accentColor={activeBrand.accentColor}
+            brandId="fmc"
+            brandName="FMC Studios"
+            brandTagline="Ferguson Media Collective"
+            accentColor="#E03413"
             briefTypeName={briefType.name}
             sctMode={briefType.sctMode}
           />

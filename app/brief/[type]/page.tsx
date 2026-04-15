@@ -41,8 +41,17 @@ export default function BriefPage({ params }: { params: { type: string } }) {
           </div>
 
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">{briefType.emoji}</span>
+            <div className="flex items-center gap-3 mb-1">
+              <span
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                style={{
+                  background: briefType.phase <= 2 ? 'rgba(73,121,123,0.15)' : 'rgba(180,95,52,0.15)',
+                  color: briefType.phase <= 2 ? '#49797B' : '#B45F34',
+                  border: `1px solid ${briefType.phase <= 2 ? 'rgba(73,121,123,0.3)' : 'rgba(180,95,52,0.3)'}`,
+                }}
+              >
+                {briefType.phase}
+              </span>
               <h1 className="text-2xl font-bold tracking-tight text-fmc-offwhite">
                 {briefType.name}
               </h1>
