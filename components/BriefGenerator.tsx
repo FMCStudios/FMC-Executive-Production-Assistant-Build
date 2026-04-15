@@ -6,6 +6,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
 import IntakeForm from './IntakeForm';
+import ProductionForm from './ProductionForm';
 import Toast from './ui/Toast';
 
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
@@ -13,8 +14,9 @@ type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
   const { operatorId } = useOperator();
   const isIntake = briefType.id === 'lead-intake';
+  const isProduction = briefType.id === 'production';
   const [input, setInput] = useState('');
-  const handleIntakeChange = useCallback((value: string) => setInput(value), []);
+  const handleFormChange = useCallback((value: string) => setInput(value), []);
   const [briefData, setBriefData] = useState<BriefSchema | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +90,9 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
     <div>
       <div className={`glass-panel p-6 ${loading ? 'animate-pulse' : ''}`}>
         {isIntake ? (
-          <IntakeForm onInputChange={handleIntakeChange} disabled={loading} />
+          <IntakeForm onInputChange={handleFormChange} disabled={loading} />
+        ) : isProduction ? (
+          <ProductionForm onInputChange={handleFormChange} disabled={loading} />
         ) : (
           <textarea
             className="glass-input w-full min-h-[200px] p-4 text-sm resize-y"
