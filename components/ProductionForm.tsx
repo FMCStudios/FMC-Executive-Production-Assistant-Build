@@ -121,20 +121,20 @@ export default function ProductionForm({
 
     // Build crew sheet lines
     const crewLines = selected.map((m) => {
-      const parts = [`${m.name} — ${m.role}`];
-      if (m.dayRate) parts.push(`$${m.dayRate}/day`);
+      const parts = [`${m.displayName} (${m.fullName}) — ${m.primaryRole}`];
+      if (m.shootingRate) parts.push(`Shoot $${m.shootingRate}/day`);
       if (m.phone) parts.push(m.phone);
       return parts.join(', ');
     }).join('\n');
     setValue('crewSheet', values.crewSheet ? values.crewSheet + '\n' + crewLines : crewLines);
 
     // Build gear list lines from selected crew members' personal gear
-    const selectedNames = new Set(selected.map(m => m.name.toLowerCase()));
+    const selectedNames = new Set(selected.map(m => m.fullName.toLowerCase()));
     const memberGear = gearLibrary.filter(g => selectedNames.has(g.owner.toLowerCase()));
     if (memberGear.length > 0) {
       const gearLines = memberGear.map((g) => {
-        const parts = [g.itemName];
-        if (g.category) parts[0] = `[${g.category}] ${g.itemName}`;
+        const label = g.brand ? `${g.brand} ${g.itemName}` : g.itemName;
+        const parts = [`[${g.category || 'Gear'}] ${label}`];
         if (g.rentalRate) parts.push(`$${g.rentalRate}/day`);
         parts.push(`(${g.owner})`);
         return parts.join(' — ');
@@ -244,7 +244,7 @@ export default function ProductionForm({
                   <div className="space-y-1.5 max-h-[200px] overflow-y-auto mb-3">
                     {crewRoster.map((m, i) => {
                       const selected = crewSelected.has(i);
-                      const gearCount = gearCountByOwner.get(m.name.toLowerCase()) || 0;
+                      const gearCount = gearCountByOwner.get(m.fullName.toLowerCase()) || 0;
                       return (
                         <button
                           key={i}
@@ -275,12 +275,12 @@ export default function ProductionForm({
                               </svg>
                             )}
                           </span>
-                          <span className="text-fmc-offwhite font-medium">{m.name}</span>
-                          <span className="text-white/30">{m.role}</span>
+                          <span className="text-fmc-offwhite font-medium">{m.displayName}</span>
+                          <span className="text-white/30">{m.primaryRole}</span>
                           {gearCount > 0 && (
                             <span className="text-fmc-teal/50 text-[10px]">{gearCount} gear</span>
                           )}
-                          {m.dayRate && <span className="text-fmc-firestarter/50 ml-auto">${m.dayRate}</span>}
+                          {m.shootingRate && <span className="text-fmc-firestarter/50 ml-auto">${m.shootingRate}</span>}
                         </button>
                       );
                     })}
