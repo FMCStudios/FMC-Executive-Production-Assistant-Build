@@ -7,6 +7,7 @@ import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
 import IntakeForm from './IntakeForm';
 import ProductionForm from './ProductionForm';
+import PostProductionForm from './PostProductionForm';
 import Toast from './ui/Toast';
 
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
@@ -15,6 +16,7 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
   const { operatorId } = useOperator();
   const isIntake = briefType.id === 'lead-intake';
   const isProduction = briefType.id === 'production';
+  const isPostProduction = briefType.id === 'post-production';
   const [input, setInput] = useState('');
   const handleFormChange = useCallback((value: string) => setInput(value), []);
   const [briefData, setBriefData] = useState<BriefSchema | null>(null);
@@ -93,6 +95,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
           <IntakeForm onInputChange={handleFormChange} disabled={loading} />
         ) : isProduction ? (
           <ProductionForm onInputChange={handleFormChange} disabled={loading} />
+        ) : isPostProduction ? (
+          <PostProductionForm onInputChange={handleFormChange} disabled={loading} />
         ) : (
           <textarea
             className="glass-input w-full min-h-[200px] p-4 text-sm resize-y"
