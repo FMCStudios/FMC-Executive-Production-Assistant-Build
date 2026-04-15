@@ -133,7 +133,7 @@ export default function PostProductionForm({
             }}
           >
             <div className="flex flex-col gap-2">
-              <label className="text-xs uppercase tracking-[0.15em] text-white/40">
+              <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">
                 {mod.label}
               </label>
               <textarea

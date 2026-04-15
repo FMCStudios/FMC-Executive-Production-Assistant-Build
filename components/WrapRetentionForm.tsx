@@ -128,7 +128,7 @@ export default function WrapRetentionForm({
     <div className="space-y-6">
       {/* Client Survey */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Client Survey</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Client Survey</span>
         <div className="space-y-4">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-white/40 font-medium">Satisfaction (1-5)</label>
@@ -212,7 +212,7 @@ export default function WrapRetentionForm({
 
       {/* Internal Debrief */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Internal Debrief</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Internal Debrief</span>
         <div className="space-y-4">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-white/40 font-medium">What went well</label>
@@ -252,7 +252,7 @@ export default function WrapRetentionForm({
 
       {/* Retention Trigger */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Retention Trigger</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Retention Trigger</span>
         <div className="space-y-4">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-white/40 font-medium">Next project idea</label>

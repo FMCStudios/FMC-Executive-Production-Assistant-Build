@@ -154,9 +154,9 @@ export default function LifecycleView() {
             >
               <button
                 onClick={() => toggleExpand(brief.id)}
-                className={`w-full glass-panel p-5 text-left cursor-pointer active:scale-[0.97] ${
+                className={`group w-full glass-panel p-5 text-left cursor-pointer active:scale-[0.97] ${
                   index < briefTypesList.length - 1 && !showHinge ? 'mb-3' : ''
-                } ${showHinge ? 'mb-3' : ''} ${isExpanded ? 'glass-panel-active' : ''}`}
+                } ${showHinge ? 'mb-3' : ''} ${isExpanded ? 'glass-panel-active border-l-2 border-fmc-firestarter' : ''}`}
                 style={{
                   transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   opacity: isOperatorPhase ? undefined : 0.5,
@@ -168,9 +168,9 @@ export default function LifecycleView() {
                     <span
                       className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
                       style={{
-                        background: isTeal ? 'rgba(73,121,123,0.15)' : 'rgba(180,95,52,0.15)',
-                        color: isTeal ? '#49797B' : '#B45F34',
-                        border: `1px solid ${isTeal ? 'rgba(73,121,123,0.3)' : 'rgba(180,95,52,0.3)'}`,
+                        background: 'rgba(224,52,19,0.15)',
+                        color: '#E03413',
+                        border: '1px solid rgba(224,52,19,0.3)',
                       }}
                     >
                       {brief.phase}
@@ -212,10 +212,10 @@ export default function LifecycleView() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="flex-shrink-0 mt-2 text-white/30"
+                    className="flex-shrink-0 mt-2 text-white/30 group-hover:text-fmc-firestarter"
                     style={{
                       transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     }}
                   >
                     <polyline points="6 9 12 15 18 9" />

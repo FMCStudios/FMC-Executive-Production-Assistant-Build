@@ -109,7 +109,7 @@ export default function ArchiveForm({
     <div className="space-y-6">
       {/* Delivery Log */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Delivery Log</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Delivery Log</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-white/40 font-medium">Finals sent</label>
@@ -141,7 +141,7 @@ export default function ArchiveForm({
 
       {/* Asset Map */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Asset Map</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Asset Map</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-white/40 font-medium">Raw footage location</label>
@@ -181,7 +181,7 @@ export default function ArchiveForm({
 
       {/* Storage Status */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Storage Status</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Storage Status</span>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
@@ -244,7 +244,7 @@ export default function ArchiveForm({
 
       {/* Deletion Authorization */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Deletion Authorization</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Deletion Authorization</span>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
@@ -287,7 +287,7 @@ export default function ArchiveForm({
 
       {/* Portfolio Flag */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-4">Portfolio Flag</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-4">Portfolio Flag</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-white/40 font-medium">Approved for reel</label>

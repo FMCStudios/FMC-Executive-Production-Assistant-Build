@@ -12,6 +12,10 @@ export default function Home() {
           <div className="text-center mb-10">
             <h1 className="text-4xl font-bold tracking-tight text-fmc-offwhite mb-3">
               Executive Production Assistant
+              <span
+                className="block h-[2px] w-16 mx-auto mt-3 rounded-full"
+                style={{ background: 'linear-gradient(to right, transparent, #E03413, transparent)' }}
+              />
             </h1>
             <p className="text-sm text-white/50">
               Lifecycle pipeline — from first call to final archive.

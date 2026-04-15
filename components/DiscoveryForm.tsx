@@ -92,7 +92,7 @@ export default function DiscoveryForm({
     <div className="space-y-6">
       {/* Section 1: What they said */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-white/40">What they said</label>
+        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they said</label>
         <textarea
           className="glass-input w-full px-3 py-2.5 text-sm resize-y min-h-[80px]"
           placeholder="Client's exact words — what did they ask for?"
@@ -104,7 +104,7 @@ export default function DiscoveryForm({
 
       {/* Section 2: What they need */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-white/40">What they need</label>
+        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they need</label>
         <textarea
           className="glass-input w-full px-3 py-2.5 text-sm resize-y min-h-[80px]"
           placeholder="Your diagnosis — what do they actually need?"
@@ -116,7 +116,7 @@ export default function DiscoveryForm({
 
       {/* Section 3: SCT Framework */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-3">SCT Framework</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-3">SCT Framework</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-fmc-teal/70 font-medium">Situation</label>
@@ -156,7 +156,7 @@ export default function DiscoveryForm({
 
       {/* Section 4: Three Tiers */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-3">Three Tiers</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-3">Three Tiers</span>
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-fmc-copper/70 font-medium">Lean ($)</label>
@@ -196,7 +196,7 @@ export default function DiscoveryForm({
 
       {/* Section 5: Context */}
       <div>
-        <span className="text-xs uppercase tracking-[0.15em] text-white/40 block mb-3">Context</span>
+        <span className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-3">Context</span>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">

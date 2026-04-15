@@ -65,8 +65,8 @@ export default function OperatorSelector() {
             background: 'rgba(13,13,13,0.95)',
             backdropFilter: 'blur(40px)',
             WebkitBackdropFilter: 'blur(40px)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(224,52,19,0.4)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 2px rgba(224,52,19,0.15)',
           }}
         >
           <div className="p-1.5">

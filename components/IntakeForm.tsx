@@ -61,7 +61,7 @@ export default function IntakeForm({
       {/* Row 1: Client + Company */}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-[0.15em] text-white/40">Client name</label>
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">Client name</label>
           <input
             type="text"
             className="glass-input w-full px-3 py-2.5 text-sm"
@@ -72,7 +72,7 @@ export default function IntakeForm({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-[0.15em] text-white/40">Company</label>
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">Company</label>
           <input
             type="text"
             className="glass-input w-full px-3 py-2.5 text-sm"
@@ -87,7 +87,7 @@ export default function IntakeForm({
       {/* Row 2: Source + Gut read */}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-[0.15em] text-white/40">How they found us</label>
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">How they found us</label>
           <select
             className="glass-input w-full px-3 py-2.5 text-sm appearance-none"
             value={fields.source}
@@ -103,7 +103,7 @@ export default function IntakeForm({
           </select>
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-[0.15em] text-white/40">Gut read</label>
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">Gut read</label>
           <select
             className="glass-input w-full px-3 py-2.5 text-sm appearance-none"
             value={fields.gutRead}
@@ -120,7 +120,7 @@ export default function IntakeForm({
 
       {/* Row 3: What they need */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-white/40">What they think they need</label>
+        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">What they think they need</label>
         <textarea
           className="glass-input w-full px-3 py-2.5 text-sm resize-none"
           rows={2}
@@ -134,7 +134,7 @@ export default function IntakeForm({
       {/* Row 4: Next step + Deadlines */}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-[0.15em] text-white/40">Next step</label>
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">Next step</label>
           <select
             className="glass-input w-full px-3 py-2.5 text-sm appearance-none"
             value={fields.nextStep}
@@ -148,7 +148,7 @@ export default function IntakeForm({
           </select>
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs uppercase tracking-[0.15em] text-white/40">
+          <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">
             Deadlines <span className="normal-case tracking-normal text-white/20">(optional)</span>
           </label>
           <input
@@ -164,7 +164,7 @@ export default function IntakeForm({
 
       {/* Row 5: Contact */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs uppercase tracking-[0.15em] text-white/40">Contact info</label>
+        <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">Contact info</label>
         <input
           type="text"
           className="glass-input w-full px-3 py-2.5 text-sm"
