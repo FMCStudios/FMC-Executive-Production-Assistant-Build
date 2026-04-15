@@ -179,7 +179,7 @@ export default function BriefOutput({
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {data.context.map((kv, i) => (
                 <div key={i} className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5">
-                  <span className="text-[10px] font-bold tracking-widest uppercase text-fmc-firestarter/80 block mb-1">{kv.label}</span>
+                  <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-firestarter/80 block mb-1">{kv.label}</span>
                   <span className="text-sm font-medium text-fmc-offwhite">{kv.value}</span>
                 </div>
               ))}
@@ -219,7 +219,7 @@ export default function BriefOutput({
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
                   {section.keyValues.map((kv, i) => (
                     <div key={i} className="bg-white/[0.03] rounded-lg px-3 py-2">
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 block mb-0.5">{kv.label}</span>
+                      <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-0.5">{kv.label}</span>
                       <span className="text-sm text-fmc-offwhite">{kv.value}</span>
                     </div>
                   ))}

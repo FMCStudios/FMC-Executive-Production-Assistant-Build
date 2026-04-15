@@ -11,6 +11,7 @@ type PhaseMeta = {
   time: string;
   failure: string;
   output: string;
+  subModules: string[];
 };
 
 const phaseMeta: Record<number, PhaseMeta> = {
@@ -18,43 +19,86 @@ const phaseMeta: Record<number, PhaseMeta> = {
     fills: 'Brandon or Junior',
     reads: 'Brandon',
     time: 'Under 2 min',
-    failure: 'Lead goes cold — no structured follow-up',
-    output: 'Structured lead brief',
+    failure: 'Too slow or formal — momentum dies, lead goes cold',
+    output: 'One-card lead summary for Brandon to glance and decide',
+    subModules: [
+      'Client name + company',
+      'How they found us',
+      'What they think they need',
+      'Gut read + next step',
+      'Deadlines + contact info',
+    ],
   },
   2: {
     fills: 'Brandon (post-call)',
-    reads: 'Brandon, crew lead',
-    time: '5-10 min',
-    failure: 'Scope creep — no confirmed boundaries',
-    output: 'Scoped brief with pricing tiers',
+    reads: 'Brandon, Dylan, Gamma proposal engine',
+    time: '5-10 min voice dump',
+    failure: "Doesn't surface the gap between ask vs need — underprice or misscope",
+    output: 'Scoping doc with 3-tier pricing, feeds into Gamma proposal',
+    subModules: [
+      'What they asked for vs what they need',
+      'SCT narrative (Situation / Challenge / Transformation)',
+      '3 tiers: lean / right / dream',
+      'Budget signals + timeline + decision maker',
+      'Red flags + competitive context',
+    ],
   },
   3: {
-    fills: 'Brandon',
-    reads: 'Crew',
-    time: '10-15 min',
-    failure: 'Crew shows up unprepared — missed shots, wrong gear',
-    output: 'Crew-ready production brief',
+    fills: 'Brandon, may delegate to Junior',
+    reads: 'Crew, talent, vendors, Corey',
+    time: 'Varies — modular',
+    failure: 'Wrong gear, wrong crew count, no location pin — someone shows up unprepared',
+    output: 'Modular crew-ready brief: call sheet, gear, crew, creative, strategy',
+    subModules: [
+      'Call Sheet — times, location, schedule, weather backup',
+      'Gear List — cameras, audio, lighting, grip, power',
+      'Crew Sheet — name, role, rate, call time, needs',
+      'Creative Ref — moodboard, tone words, shot list, wardrobe',
+      'Paper Edit — story arc, questions, soundbites (if interview)',
+      'Strategy Echo — why, audience, platform, CTA, success metric',
+    ],
   },
   4: {
     fills: 'Brandon',
-    reads: 'Editor / post supervisor',
-    time: '10-15 min',
+    reads: 'Post supervisor, editor, colourist, sound mixer',
+    time: '10-15 min — most critical brief',
     failure: 'Editor guesses — wrong tone, wrong pacing, revision hell',
-    output: 'Editor-ready post brief',
+    output: 'Editor-ready brief with full technical, creative, and delivery specs',
+    subModules: [
+      'Technical — codec, frame rate, audio layout, known issues',
+      'Assets — footage location, selects, music, graphics, VO',
+      'Paper Edit — story arc, scene order, must-include, must-avoid',
+      'Creative Direction — tone, grade, graphics, sound design',
+      'Strategy Echo — audience, platform, CTA',
+      'Deliverables — formats, versions, captions, thumbnails',
+      'Timeline — rough cut, revisions, final delivery',
+    ],
   },
   5: {
-    fills: 'Brandon + client survey',
-    reads: 'Brandon',
-    time: '5-10 min',
-    failure: 'Client ghosts — no rebooking, no referral, no testimonial',
-    output: 'Retention brief + follow-up plan',
+    fills: 'Client (survey) + Brandon (debrief)',
+    reads: 'Brandon, Junior (follow-up), Dylan (revenue)',
+    time: 'Client: 3 min. Brandon: 5 min',
+    failure: 'Skip it — lose the upsell, the testimonial, the data',
+    output: 'Client survey + internal debrief + retention triggers',
+    subModules: [
+      'Client Survey — satisfaction, referral, testimonial, portfolio permission',
+      'Internal Debrief — wins, time leaks, crew notes, scope creep, budget vs actual',
+      'Retention Trigger — next project, retainer potential, follow-up date, cross-sell',
+    ],
   },
   6: {
-    fills: 'Junior / Corey',
-    reads: 'Anyone who needs the project later',
-    time: '5 min',
-    failure: "Files lost — can't find project when client comes back",
-    output: 'Archive action plan',
+    fills: 'Junior or Corey. Brandon reviews',
+    reads: 'Anyone who touches storage, future-Brandon',
+    time: '5 min checklist',
+    failure: "Can't prove delivery, storage liability, can't find old work",
+    output: 'Delivery proof + asset map + storage status + portfolio flags',
+    subModules: [
+      'Delivery Log — finals sent, method, confirmation',
+      'Asset Map — raw, project files, exports, music, graphics',
+      'Storage Status — size, backup, cloud vs local',
+      'Deletion Auth — retention policy, client response, legal hold',
+      'Portfolio Flag — approved for reel, best clips, case study potential',
+    ],
   },
 };
 
@@ -94,9 +138,9 @@ export default function LifecycleView() {
                   <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-copper/70">
                     handshake
                   </span>
-                  <span className="text-fmc-copper/40 text-[10px]">—</span>
+                  <span className="text-fmc-copper/40 text-[10px]">&mdash;</span>
                   <span className="text-[10px] font-medium tracking-wide text-fmc-copper/50">
-                    SCT flips to strategy · creative · tactics
+                    SCT flips to strategy &middot; creative &middot; tactics
                   </span>
                 </div>
                 <div className="flex-1 h-px bg-fmc-copper/30" />
@@ -110,7 +154,7 @@ export default function LifecycleView() {
             >
               <button
                 onClick={() => toggleExpand(brief.id)}
-                className={`w-full glass-panel hover-glow p-5 text-left active:scale-[0.97] ${
+                className={`w-full glass-panel p-5 text-left cursor-pointer active:scale-[0.97] ${
                   index < briefTypesList.length - 1 && !showHinge ? 'mb-3' : ''
                 } ${showHinge ? 'mb-3' : ''} ${isExpanded ? 'glass-panel-active' : ''}`}
                 style={{
@@ -147,8 +191,8 @@ export default function LifecycleView() {
                           }}
                         >
                           {isTeal
-                            ? 'situation · challenge · transformation'
-                            : 'strategy · creative · tactics'
+                            ? 'situation \u00b7 challenge \u00b7 transformation'
+                            : 'strategy \u00b7 creative \u00b7 tactics'
                           }
                         </span>
                       </div>
@@ -186,28 +230,43 @@ export default function LifecycleView() {
                   >
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       <div className="bg-white/[0.03] rounded-lg px-3 py-2.5">
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 block mb-0.5">
+                        <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-0.5">
                           Who fills
                         </span>
                         <span className="text-xs text-fmc-offwhite">{meta.fills}</span>
                       </div>
                       <div className="bg-white/[0.03] rounded-lg px-3 py-2.5">
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 block mb-0.5">
+                        <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-0.5">
                           Who reads
                         </span>
                         <span className="text-xs text-fmc-offwhite">{meta.reads}</span>
                       </div>
                       <div className="bg-white/[0.03] rounded-lg px-3 py-2.5">
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 block mb-0.5">
+                        <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-0.5">
                           Time to fill
                         </span>
                         <span className="text-xs text-fmc-offwhite">{meta.time}</span>
                       </div>
                       <div className="bg-white/[0.03] rounded-lg px-3 py-2.5">
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 block mb-0.5">
+                        <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-0.5">
                           Output
                         </span>
                         <span className="text-xs text-fmc-offwhite">{meta.output}</span>
+                      </div>
+                    </div>
+
+                    {/* Sub-modules */}
+                    <div className="mb-4">
+                      <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-2">
+                        What it captures
+                      </span>
+                      <div className="space-y-1">
+                        {meta.subModules.map((mod, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-white/60">
+                            <span className="text-fmc-copper mt-0.5 flex-shrink-0">&middot;</span>
+                            <span>{mod}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
@@ -219,7 +278,7 @@ export default function LifecycleView() {
                         border: '1px solid rgba(224,52,19,0.15)',
                       }}
                     >
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-fmc-firestarter/60 block mb-0.5">
+                      <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-firestarter/60 block mb-0.5">
                         Failure mode
                       </span>
                       <span className="text-xs text-fmc-firestarter/80">{meta.failure}</span>
