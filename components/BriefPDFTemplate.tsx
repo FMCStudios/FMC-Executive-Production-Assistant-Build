@@ -327,7 +327,7 @@ export function buildPDFHTML(props: PDFTemplateProps): string {
     }
 
     // Render GENERAL last
-    const orderedKeys = [...groups.keys()].filter(k => k !== 'General');
+    const orderedKeys = Array.from(groups.keys()).filter(k => k !== 'General');
     if (groups.has('General')) orderedKeys.push('General');
 
     for (const owner of orderedKeys) {
