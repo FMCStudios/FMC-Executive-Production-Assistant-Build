@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import VoiceMic from './VoiceMic';
 import type { CrewMember } from '@/lib/crew';
+import type { GearItem } from '@/lib/gear';
 
 type ModuleKey = 'callSheet' | 'gearList' | 'crewSheet' | 'creativeRef' | 'paperEdit' | 'strategyEcho';
 
@@ -93,8 +94,9 @@ export default function ProductionForm({
     setValues((prev) => ({ ...prev, [key]: val }));
   };
 
-  // Crew roster pull
+  // Crew + gear roster pull
   const [crewRoster, setCrewRoster] = useState<CrewMember[]>([]);
+  const [gearLibrary, setGearLibrary] = useState<GearItem[]>([]);
   const [crewLoading, setCrewLoading] = useState(false);
   const [crewOpen, setCrewOpen] = useState(false);
   const [crewSelected, setCrewSelected] = useState<Set<number>>(new Set());
@@ -103,31 +105,53 @@ export default function ProductionForm({
     if (crewRoster.length > 0) { setCrewOpen(true); return; }
     setCrewLoading(true);
     try {
-      const res = await fetch('/api/crew');
-      const data = await res.json();
-      if (data.crew) setCrewRoster(data.crew);
+      const [crewRes, gearRes] = await Promise.all([
+        fetch('/api/crew').then(r => r.json()),
+        fetch('/api/gear').then(r => r.json()),
+      ]);
+      if (crewRes.crew) setCrewRoster(crewRes.crew);
+      if (gearRes.gear) setGearLibrary(gearRes.gear);
       setCrewOpen(true);
     } catch { /* silent */ }
     setCrewLoading(false);
   }, [crewRoster.length]);
 
   const applyCrewSelection = () => {
-    const lines = Array.from(crewSelected)
-      .map((i) => crewRoster[i])
-      .filter(Boolean)
-      .map((m) => {
-        const parts = [`${m.name} — ${m.role}`];
-        if (m.dayRate) parts.push(`$${m.dayRate}/day`);
-        if (m.kitFee) parts.push(`kit $${m.kitFee}`);
-        if (m.phone) parts.push(m.phone);
-        if (m.gear.length) parts.push(`Gear: ${m.gear.join(', ')}`);
-        return parts.join(', ');
-      })
-      .join('\n');
-    setValue('crewSheet', values.crewSheet ? values.crewSheet + '\n' + lines : lines);
+    const selected = Array.from(crewSelected).map((i) => crewRoster[i]).filter(Boolean);
+
+    // Build crew sheet lines
+    const crewLines = selected.map((m) => {
+      const parts = [`${m.name} — ${m.role}`];
+      if (m.dayRate) parts.push(`$${m.dayRate}/day`);
+      if (m.phone) parts.push(m.phone);
+      return parts.join(', ');
+    }).join('\n');
+    setValue('crewSheet', values.crewSheet ? values.crewSheet + '\n' + crewLines : crewLines);
+
+    // Build gear list lines from selected crew members' personal gear
+    const selectedNames = new Set(selected.map(m => m.name.toLowerCase()));
+    const memberGear = gearLibrary.filter(g => selectedNames.has(g.owner.toLowerCase()));
+    if (memberGear.length > 0) {
+      const gearLines = memberGear.map((g) => {
+        const parts = [g.itemName];
+        if (g.category) parts[0] = `[${g.category}] ${g.itemName}`;
+        if (g.rentalRate) parts.push(`$${g.rentalRate}/day`);
+        parts.push(`(${g.owner})`);
+        return parts.join(' — ');
+      }).join('\n');
+      setValue('gearList', values.gearList ? values.gearList + '\n' + gearLines : gearLines);
+    }
+
     setCrewOpen(false);
     setCrewSelected(new Set());
   };
+
+  // Build gear count per crew member for display
+  const gearCountByOwner = new Map<string, number>();
+  for (const g of gearLibrary) {
+    const key = g.owner.toLowerCase();
+    gearCountByOwner.set(key, (gearCountByOwner.get(key) || 0) + 1);
+  }
 
   return (
     <div className="space-y-5">
@@ -217,9 +241,10 @@ export default function ProductionForm({
                     border: '1px solid rgba(255,255,255,0.06)',
                   }}
                 >
-                  <div className="space-y-1.5 max-h-[160px] overflow-y-auto mb-3">
+                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto mb-3">
                     {crewRoster.map((m, i) => {
                       const selected = crewSelected.has(i);
+                      const gearCount = gearCountByOwner.get(m.name.toLowerCase()) || 0;
                       return (
                         <button
                           key={i}
@@ -252,6 +277,9 @@ export default function ProductionForm({
                           </span>
                           <span className="text-fmc-offwhite font-medium">{m.name}</span>
                           <span className="text-white/30">{m.role}</span>
+                          {gearCount > 0 && (
+                            <span className="text-fmc-teal/50 text-[10px]">{gearCount} gear</span>
+                          )}
                           {m.dayRate && <span className="text-fmc-firestarter/50 ml-auto">${m.dayRate}</span>}
                         </button>
                       );
@@ -264,7 +292,7 @@ export default function ProductionForm({
                       disabled={crewSelected.size === 0}
                       className="btn-firestarter px-3 py-1.5 text-[10px]"
                     >
-                      Add {crewSelected.size} to brief
+                      Add {crewSelected.size} to brief + gear
                     </button>
                     <button
                       type="button"

@@ -1,11 +1,11 @@
 import { google } from 'googleapis';
 
-export type CrewMember = {
-  name: string;
-  role: string;
-  email: string;
-  phone: string;
-  dayRate: string;
+export type GearItem = {
+  itemName: string;
+  category: string;
+  owner: string;
+  rentalRate: string;
+  serialNumber: string;
   notes: string;
 };
 
@@ -25,30 +25,30 @@ function getAuth() {
   return { auth, spreadsheetId };
 }
 
-export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMember[] }> {
+export async function readGearLibrary(): Promise<{ success: boolean; gear: GearItem[] }> {
   const config = getAuth();
-  if (!config) return { success: false, crew: [] };
+  if (!config) return { success: false, gear: [] };
 
   const { auth, spreadsheetId } = config;
   const sheets = google.sheets({ version: 'v4', auth });
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Roster!A2:F',
+    range: 'Gear Library!A2:F',
   });
 
   const rows = res.data.values || [];
 
-  const crew: CrewMember[] = rows
+  const gear: GearItem[] = rows
     .filter((row) => row[0]?.trim())
     .map((row) => ({
-      name: row[0]?.trim() || '',
-      role: row[1]?.trim() || '',
-      email: row[2]?.trim() || '',
-      phone: row[3]?.trim() || '',
-      dayRate: row[4]?.trim() || '',
+      itemName: row[0]?.trim() || '',
+      category: row[1]?.trim() || '',
+      owner: row[2]?.trim() || '',
+      rentalRate: row[3]?.trim() || '',
+      serialNumber: row[4]?.trim() || '',
       notes: row[5]?.trim() || '',
     }));
 
-  return { success: true, crew };
+  return { success: true, gear };
 }

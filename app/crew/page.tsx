@@ -3,22 +3,38 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import type { CrewMember } from '@/lib/crew';
+import type { GearItem } from '@/lib/gear';
 
 export default function CrewPage() {
   const [crew, setCrew] = useState<CrewMember[]>([]);
+  const [gear, setGear] = useState<GearItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/crew')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.crew) setCrew(data.crew);
-        else setError(data.error || 'Failed to load crew roster');
+    Promise.all([
+      fetch('/api/crew').then((r) => r.json()),
+      fetch('/api/gear').then((r) => r.json()),
+    ])
+      .then(([crewData, gearData]) => {
+        if (crewData.crew) setCrew(crewData.crew);
+        else setError(crewData.error || 'Failed to load roster');
+        if (gearData.gear) setGear(gearData.gear);
       })
-      .catch(() => setError('Failed to fetch crew roster'))
+      .catch(() => setError('Failed to fetch data'))
       .finally(() => setLoading(false));
   }, []);
+
+  // Build gear-by-owner lookup
+  const gearByOwner = new Map<string, GearItem[]>();
+  for (const item of gear) {
+    const owner = item.owner.toLowerCase();
+    if (!gearByOwner.has(owner)) gearByOwner.set(owner, []);
+    gearByOwner.get(owner)!.push(item);
+  }
+
+  // House gear
+  const houseGear = gearByOwner.get('fmc house') || gearByOwner.get('fmc') || gearByOwner.get('house') || [];
 
   return (
     <div className="min-h-screen">
@@ -27,7 +43,7 @@ export default function CrewPage() {
         <div className="stagger">
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight text-fmc-offwhite mb-2">
-              Crew Roster
+              Crew &amp; Gear
             </h1>
             <p className="text-sm text-white/50">
               Managed in Google Sheets — read-only view.
@@ -49,67 +65,106 @@ export default function CrewPage() {
 
           {!loading && !error && crew.length === 0 && (
             <div className="glass-panel p-5 text-sm text-white/50">
-              No crew members found. Add rows to the &ldquo;Crew&rdquo; tab in Google Sheets.
+              No crew members found. Add rows to the &ldquo;Roster&rdquo; tab in Google Sheets.
             </div>
           )}
 
           {crew.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {crew.map((member, i) => (
-                <div
-                  key={i}
-                  className="glass-panel p-5 opacity-0 animate-fadeUp"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <span
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                      style={{
-                        background: 'rgba(224,52,19,0.15)',
-                        color: '#E03413',
-                        border: '1px solid rgba(224,52,19,0.3)',
-                      }}
-                    >
-                      {member.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </span>
-                    <div>
-                      <span className="text-sm font-semibold text-fmc-offwhite block">
-                        {member.name}
+              {crew.map((member, i) => {
+                const memberGear = gearByOwner.get(member.name.toLowerCase()) || [];
+                return (
+                  <div
+                    key={i}
+                    className="glass-panel p-5 opacity-0 animate-fadeUp"
+                    style={{ animationDelay: `${i * 60}ms` }}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <span
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                        style={{
+                          background: 'rgba(224,52,19,0.15)',
+                          color: '#E03413',
+                          border: '1px solid rgba(224,52,19,0.3)',
+                        }}
+                      >
+                        {member.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </span>
-                      <span className="text-xs text-fmc-copper">{member.role}</span>
+                      <div>
+                        <span className="text-sm font-semibold text-fmc-offwhite block">
+                          {member.name}
+                        </span>
+                        <span className="text-xs text-fmc-copper">{member.role}</span>
+                      </div>
                     </div>
+
+                    {member.dayRate && (
+                      <div className="text-xs text-white/50 mb-1">
+                        <span className="text-fmc-firestarter/60">${member.dayRate}/day</span>
+                      </div>
+                    )}
+
+                    {memberGear.length > 0 && (
+                      <div className="mt-3">
+                        <span className="text-[10px] uppercase tracking-[0.15em] text-white/30 block mb-1.5">Personal gear</span>
+                        <div className="flex flex-wrap gap-1">
+                          {memberGear.map((g, gi) => (
+                            <span
+                              key={gi}
+                              className="text-[10px] px-2 py-0.5 rounded-full"
+                              style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                color: 'rgba(255,255,255,0.5)',
+                              }}
+                              title={g.rentalRate ? `$${g.rentalRate}/day` : undefined}
+                            >
+                              {g.itemName}
+                              {g.rentalRate && <span className="text-fmc-firestarter/40 ml-1">${g.rentalRate}</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {member.notes && (
+                      <p className="text-xs text-white/30 mt-2 italic">{member.notes}</p>
+                    )}
                   </div>
+                );
+              })}
+            </div>
+          )}
 
-                  {member.dayRate && (
-                    <div className="text-xs text-white/50 mb-1">
-                      <span className="text-fmc-firestarter/60">${member.dayRate}</span>
-                      {member.kitFee && <span className="text-white/30"> + ${member.kitFee} kit</span>}
-                    </div>
-                  )}
-
-                  {member.gear.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {member.gear.map((g, gi) => (
+          {/* House gear section */}
+          {houseGear.length > 0 && (
+            <div className="mt-10">
+              <h2 className="text-lg font-semibold text-fmc-offwhite mb-4">FMC House Gear</h2>
+              <div className="glass-panel p-5">
+                {/* Group by category */}
+                {Array.from(new Set(houseGear.map(g => g.category))).map((cat) => (
+                  <div key={cat} className="mb-4 last:mb-0">
+                    <span className="text-[10px] uppercase tracking-[0.15em] text-fmc-firestarter/60 block mb-2">{cat}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {houseGear.filter(g => g.category === cat).map((g, gi) => (
                         <span
                           key={gi}
-                          className="text-[10px] px-2 py-0.5 rounded-full"
+                          className="text-xs px-2.5 py-1 rounded-full"
                           style={{
                             background: 'rgba(255,255,255,0.04)',
                             border: '1px solid rgba(255,255,255,0.08)',
-                            color: 'rgba(255,255,255,0.5)',
+                            color: 'rgba(255,255,255,0.6)',
                           }}
+                          title={[g.serialNumber && `S/N: ${g.serialNumber}`, g.notes].filter(Boolean).join(' — ')}
                         >
-                          {g}
+                          {g.itemName}
+                          {g.rentalRate && <span className="text-fmc-copper/50 ml-1">${g.rentalRate}</span>}
                         </span>
                       ))}
                     </div>
-                  )}
-
-                  {member.notes && (
-                    <p className="text-xs text-white/30 mt-2 italic">{member.notes}</p>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
