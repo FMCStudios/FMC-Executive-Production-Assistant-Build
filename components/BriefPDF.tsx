@@ -293,7 +293,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
             <Text style={{
               fontSize: 11,
               color: t.textMuted,
-              fontStyle: isOC ? 'italic' : 'normal',
+              // Ovo doesn't have an italic variant registered; Shelten is inherently script
               marginBottom: 12,
             }}>
               {data.projectDescription}
@@ -619,7 +619,6 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
             fontFamily: t.footerTaglineFont || t.displayFont,
             fontSize: 8.5,
             fontWeight: 700,
-            fontStyle: t.footerTaglineFont ? 'italic' : 'normal',
             color: t.accent,
           }}>
             {t.footerTagline}
