@@ -71,20 +71,42 @@ export async function POST(req: Request) {
     console.log('[auth/request] Sending email via Resend to:', email);
     const resend = new Resend(process.env.RESEND_API_KEY);
     const result = await resend.emails.send({
-      from: 'EPA <onboarding@resend.dev>',
+      from: 'EPA <epa@fmcstudios.com>',
+      replyTo: 'brandon@fmcstudios.com',
       to: email,
       subject: 'Your EPA login link',
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <p style="color: #666; font-size: 14px;">Hey ${member.displayName},</p>
-          <p style="color: #333; font-size: 14px;">Click below to log into the EPA:</p>
-          <a href="${verifyUrl}" style="display: inline-block; background: #E03413; color: white; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 16px 0;">
-            Log in to EPA
-          </a>
-          <p style="color: #999; font-size: 12px; margin-top: 24px;">This link expires in 30 minutes. If you didn't request this, ignore this email.</p>
-          <p style="color: #999; font-size: 11px; margin-top: 32px;">— FMC Studios</p>
-        </div>
-      `,
+      html: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #0D0D0D; font-family: 'Avenir Next', Avenir, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #0D0D0D;">
+    <tr><td align="center" style="padding: 40px 20px;">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width: 480px; width: 100%;">
+        <!-- Header with ember gradient -->
+        <tr><td style="background: linear-gradient(180deg, rgba(224,52,19,0.12) 0%, rgba(180,95,52,0.06) 60%, transparent 100%); border-radius: 16px 16px 0 0; padding: 40px 32px 24px; text-align: center;">
+          <img src="https://fmc-epa.vercel.app/logos/fmc-cube.png" alt="FMC" width="40" height="40" style="display: block; margin: 0 auto 20px;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #F0EBE1; letter-spacing: -0.02em;">Your EPA login link</h1>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="background-color: rgba(255,255,255,0.03); padding: 32px; border-left: 1px solid rgba(255,255,255,0.06); border-right: 1px solid rgba(255,255,255,0.06);">
+          <p style="margin: 0 0 8px; font-size: 15px; color: #F0EBE1;">Hey ${member.displayName},</p>
+          <p style="margin: 0 0 28px; font-size: 14px; color: rgba(240,235,225,0.5); line-height: 1.5;">Click below to sign in. This link expires in 30 minutes.</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+            <tr><td style="background-color: #E03413; border-radius: 8px;">
+              <a href="${verifyUrl}" style="display: inline-block; padding: 14px 28px; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; letter-spacing: 0.01em;">Log in to EPA</a>
+            </td></tr>
+          </table>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background-color: rgba(255,255,255,0.02); border-radius: 0 0 16px 16px; padding: 24px 32px; border-left: 1px solid rgba(255,255,255,0.06); border-right: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <p style="margin: 0 0 12px; font-size: 11px; color: rgba(240,235,225,0.25); line-height: 1.5;">If you didn't request this, you can ignore this email. Only roster members can request login links.</p>
+          <p style="margin: 0; font-size: 11px; color: rgba(224,52,19,0.4);">FMC Studios &middot; EPA</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
     });
     console.log('[auth/request] Resend response:', JSON.stringify(result));
   } catch (err) {

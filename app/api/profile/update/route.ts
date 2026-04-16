@@ -86,13 +86,14 @@ export async function POST(req: Request) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-          from: 'EPA <onboarding@resend.dev>',
+          from: 'EPA <epa@fmcstudios.com>',
+          replyTo: 'brandon@fmcstudios.com',
           to: process.env.ADMIN_EMAIL,
           subject: `Profile update: ${name}`,
-          html: `<div style="font-family: -apple-system, sans-serif; padding: 20px;">
-            <p><strong>${name}</strong> updated their profile:</p>
-            <ul>${changes.map(c => `<li style="font-size: 14px; color: #333; margin: 4px 0;">${c}</li>`).join('')}</ul>
-            <p style="color: #999; font-size: 12px; margin-top: 20px;">— EPA</p>
+          html: `<div style="font-family: 'Avenir Next', Avenir, -apple-system, sans-serif; background: #0D0D0D; padding: 32px; border-radius: 16px; max-width: 480px;">
+            <p style="color: #F0EBE1; font-size: 14px; font-weight: 600; margin: 0 0 16px;"><strong>${name}</strong> updated their profile:</p>
+            <ul style="padding-left: 16px; margin: 0 0 20px;">${changes.map(c => `<li style="font-size: 13px; color: rgba(240,235,225,0.6); margin: 6px 0; line-height: 1.4;">${c}</li>`).join('')}</ul>
+            <p style="color: rgba(224,52,19,0.4); font-size: 11px; margin: 0;">FMC Studios &middot; EPA</p>
           </div>`,
         });
       } catch { /* email is best-effort */ }

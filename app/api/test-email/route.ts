@@ -24,10 +24,15 @@ export async function GET(req: Request) {
     const timestamp = new Date().toISOString();
 
     const result = await resend.emails.send({
-      from: 'EPA <onboarding@resend.dev>',
+      from: 'EPA <epa@fmcstudios.com>',
+      replyTo: 'brandon@fmcstudios.com',
       to: adminEmail,
       subject: 'EPA test email',
-      html: `<p>If you're reading this, Resend is wired up and working.</p><p>Deployed at ${timestamp}.</p>`,
+      html: `<div style="font-family: 'Avenir Next', Avenir, -apple-system, sans-serif; background: #0D0D0D; padding: 32px; border-radius: 16px; max-width: 480px;">
+        <p style="color: #F0EBE1; font-size: 14px;">If you're reading this, Resend is wired up and working.</p>
+        <p style="color: rgba(240,235,225,0.5); font-size: 13px;">Deployed at ${timestamp}.</p>
+        <p style="color: rgba(224,52,19,0.4); font-size: 11px; margin-top: 20px;">FMC Studios &middot; EPA</p>
+      </div>`,
     });
 
     console.log('[test-email] Success:', JSON.stringify(result));
