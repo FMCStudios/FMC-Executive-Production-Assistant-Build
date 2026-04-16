@@ -14,6 +14,7 @@ export type CrewMember = {
   otherRate: string;
   otherRateLabel: string;
   notes: string;
+  skills: string[];
   // Computed
   displayName: string;
   fullName: string;
@@ -46,7 +47,7 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Roster!A2:M',
+    range: 'Roster!A2:N',
   });
 
   const rows = res.data.values || [];
@@ -71,6 +72,7 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
         otherRate: row[10]?.trim() || '',
         otherRateLabel: row[11]?.trim() || '',
         notes: row[12]?.trim() || '',
+        skills: (row[13] || '').split(',').map((s: string) => s.trim()).filter(Boolean),
         displayName: aka || firstName,
         fullName: `${firstName} ${lastName}`.trim(),
       };
