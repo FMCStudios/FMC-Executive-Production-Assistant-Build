@@ -4,28 +4,73 @@ import { findCrewByEmail } from '@/lib/crew';
 import { createMagicToken } from '@/lib/auth';
 
 export async function POST(req: Request) {
+  const genericMsg = "If your email is on the roster, you'll get a link.";
+
+  // Log env var presence (not values)
+  console.log('[auth/request] ENV CHECK:', {
+    RESEND_API_KEY: process.env.RESEND_API_KEY ? `defined (${process.env.RESEND_API_KEY.length} chars)` : 'MISSING',
+    AUTH_SECRET: process.env.AUTH_SECRET ? 'defined' : 'MISSING',
+    ADMIN_EMAIL: process.env.ADMIN_EMAIL ? 'defined' : 'MISSING',
+    NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL || 'not set',
+    VERCEL_URL: process.env.VERCEL_URL || 'not set',
+    GOOGLE_SHEETS_CLIENT_EMAIL: process.env.GOOGLE_SHEETS_CLIENT_EMAIL ? 'defined' : 'MISSING',
+    GOOGLE_SHEETS_SPREADSHEET_ID: process.env.GOOGLE_SHEETS_SPREADSHEET_ID ? 'defined' : 'MISSING',
+  });
+
+  let email: string;
   try {
-    const { email } = await req.json();
-    if (!email) {
-      return NextResponse.json({ error: 'Email required' }, { status: 400 });
-    }
+    const body = await req.json();
+    email = body.email;
+    console.log('[auth/request] Email received:', email ? `${email.substring(0, 3)}...@...` : 'empty');
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.error('[auth/request] Failed to parse request body:', e.name, e.message, e.stack);
+    return NextResponse.json({ message: genericMsg });
+  }
 
-    // Generic message regardless of whether email exists
-    const genericMsg = "If your email is on the roster, you'll get a link.";
+  if (!email) {
+    console.log('[auth/request] No email provided');
+    return NextResponse.json({ error: 'Email required' }, { status: 400 });
+  }
 
-    const member = await findCrewByEmail(email);
-    if (!member) {
-      return NextResponse.json({ message: genericMsg });
-    }
+  // Step 1: Find crew member
+  let member;
+  try {
+    console.log('[auth/request] Looking up email in Roster...');
+    member = await findCrewByEmail(email);
+    console.log('[auth/request] Roster lookup result:', member ? `found: ${member.displayName}` : 'not found');
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.error('[auth/request] Roster lookup FAILED:', e.name, e.message, e.stack);
+    return NextResponse.json({ message: genericMsg });
+  }
 
-    const token = createMagicToken(email);
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000';
-    const verifyUrl = `${baseUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
+  if (!member) {
+    return NextResponse.json({ message: genericMsg });
+  }
 
+  // Step 2: Create magic token
+  let token: string;
+  let verifyUrl: string;
+  try {
+    token = createMagicToken(email);
+    console.log('[auth/request] Magic token created, length:', token.length);
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    verifyUrl = `${baseUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
+    console.log('[auth/request] Verify URL base:', baseUrl);
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.error('[auth/request] Token creation FAILED:', e.name, e.message, e.stack);
+    return NextResponse.json({ message: genericMsg });
+  }
+
+  // Step 3: Send email via Resend
+  try {
+    console.log('[auth/request] Sending email via Resend to:', email);
     const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: 'EPA <onboarding@resend.dev>',
       to: email,
       subject: 'Your EPA login link',
@@ -41,10 +86,13 @@ export async function POST(req: Request) {
         </div>
       `,
     });
-
+    console.log('[auth/request] Resend response:', JSON.stringify(result));
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.error('[auth/request] Resend send FAILED:', e.name, e.message, e.stack);
     return NextResponse.json({ message: genericMsg });
-  } catch (error) {
-    console.error('Auth request error:', error);
-    return NextResponse.json({ message: "If your email is on the roster, you'll get a link." });
   }
+
+  console.log('[auth/request] Success — email sent');
+  return NextResponse.json({ message: genericMsg });
 }
