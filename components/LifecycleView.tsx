@@ -16,11 +16,11 @@ type PhaseMeta = {
 
 const phaseMeta: Record<number, PhaseMeta> = {
   1: {
-    fills: 'Brandon or Junior',
-    reads: 'Brandon',
+    fills: 'Supervising Producer or Production Assistant',
+    reads: 'Supervising Producer',
     time: 'Under 2 min',
     failure: 'Too slow or formal — momentum dies, lead goes cold',
-    output: 'One-card lead summary for Brandon to glance and decide',
+    output: 'One-card lead summary — glance and decide next move',
     subModules: [
       'Client name + company',
       'How they found us',
@@ -30,8 +30,8 @@ const phaseMeta: Record<number, PhaseMeta> = {
     ],
   },
   2: {
-    fills: 'Brandon (post-call)',
-    reads: 'Brandon, Dylan, Gamma proposal engine',
+    fills: 'Supervising Producer (post-call)',
+    reads: 'Supervising Producer, Biz Dev, Gamma proposal engine',
     time: '5-10 min voice dump',
     failure: "Doesn't surface the gap between ask vs need — underprice or misscope",
     output: 'Scoping doc with 3-tier pricing, feeds into Gamma proposal',
@@ -44,8 +44,8 @@ const phaseMeta: Record<number, PhaseMeta> = {
     ],
   },
   3: {
-    fills: 'Brandon, may delegate to Junior',
-    reads: 'Crew, talent, vendors, Corey',
+    fills: 'Supervising Producer, may delegate to Production Assistant',
+    reads: 'Crew, talent, vendors, Post Supervisor',
     time: 'Varies — modular',
     failure: 'Wrong gear, wrong crew count, no location pin — someone shows up unprepared',
     output: 'Modular crew-ready brief: call sheet, gear, crew, creative, strategy',
@@ -59,8 +59,8 @@ const phaseMeta: Record<number, PhaseMeta> = {
     ],
   },
   4: {
-    fills: 'Brandon',
-    reads: 'Post supervisor, editor, colourist, sound mixer',
+    fills: 'Supervising Producer',
+    reads: 'Post Supervisor, Editor, colourist, sound mixer',
     time: '10-15 min — most critical brief',
     failure: 'Editor guesses — wrong tone, wrong pacing, revision hell',
     output: 'Editor-ready brief with full technical, creative, and delivery specs',
@@ -75,9 +75,9 @@ const phaseMeta: Record<number, PhaseMeta> = {
     ],
   },
   5: {
-    fills: 'Client (survey) + Brandon (debrief)',
-    reads: 'Brandon, Junior (follow-up), Dylan (revenue)',
-    time: 'Client: 3 min. Brandon: 5 min',
+    fills: 'Client (survey) + Supervising Producer (debrief)',
+    reads: 'Supervising Producer, Production Assistant (follow-up), Biz Dev (revenue)',
+    time: 'Client: 3 min. Producer: 5 min',
     failure: 'Skip it — lose the upsell, the testimonial, the data',
     output: 'Client survey + internal debrief + retention triggers',
     subModules: [
@@ -87,8 +87,8 @@ const phaseMeta: Record<number, PhaseMeta> = {
     ],
   },
   6: {
-    fills: 'Junior or Corey. Brandon reviews',
-    reads: 'Anyone who touches storage, future-Brandon',
+    fills: 'Production Assistant or Post Supervisor. Supervising Producer reviews',
+    reads: 'Anyone who touches storage, future production teams',
     time: '5 min checklist',
     failure: "Can't prove delivery, storage liability, can't find old work",
     output: 'Delivery proof + asset map + storage status + portfolio flags',
