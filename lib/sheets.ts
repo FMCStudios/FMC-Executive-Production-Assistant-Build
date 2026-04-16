@@ -30,6 +30,8 @@ export type BriefSheetData = {
   briefTypeName: string;
   phase: number;
   operatorId: string;
+  operatorEmail?: string;
+  crewOnBrief?: string;
   rawInput: string;
   data: BriefSchema;
 };
@@ -106,11 +108,13 @@ export async function writeBriefToSheet(input: BriefSheetData): Promise<{ succes
     nextStepsSummary,               // O: Next Steps Detail
     data.projectDescription || '',  // P: Description
     briefId,                        // Q: Brief ID
+    input.operatorEmail || '',      // R: Operator Email
+    input.crewOnBrief || '',        // S: Crew On Brief
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'Pipeline!A:Q',
+    range: 'Pipeline!A:S',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });

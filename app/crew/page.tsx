@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+import { useSession } from '@/context/SessionContext';
 import type { CrewMember } from '@/lib/crew';
 import type { GearItem } from '@/lib/gear';
 
 export default function CrewPage() {
+  const { user } = useSession();
+  const canSeeRates = user?.accessLevel === 'Admin' || user?.accessLevel === 'Supervisor';
   const [crew, setCrew] = useState<CrewMember[]>([]);
   const [gear, setGear] = useState<GearItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,8 +135,8 @@ export default function CrewPage() {
                       </div>
                     )}
 
-                    {/* Rates */}
-                    {rates.length > 0 && (
+                    {/* Rates (supervisors + admins only) */}
+                    {canSeeRates && rates.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-2">
                         {rates.map((r, ri) => (
                           <span key={ri} className="text-[10px] text-fmc-firestarter/60">{r}</span>
@@ -161,7 +164,7 @@ export default function CrewPage() {
                                 >
                                   {g.brand && <span className="text-white/30">{g.brand} </span>}
                                   {g.itemName}
-                                  {g.rentalRate && <span className="text-fmc-firestarter/40 ml-1">${g.rentalRate}</span>}
+                                  {canSeeRates && g.rentalRate && <span className="text-fmc-firestarter/40 ml-1">${g.rentalRate}</span>}
                                 </span>
                               ))}
                             </div>
@@ -201,7 +204,7 @@ export default function CrewPage() {
                         >
                           {g.brand && <span className="text-white/30">{g.brand} </span>}
                           {g.itemName}
-                          {g.rentalRate && <span className="text-fmc-copper/50 ml-1">${g.rentalRate}</span>}
+                          {canSeeRates && g.rentalRate && <span className="text-fmc-copper/50 ml-1">${g.rentalRate}</span>}
                         </span>
                       ))}
                     </div>

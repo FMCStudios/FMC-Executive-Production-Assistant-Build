@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useOperator } from '@/context/OperatorContext';
+import { useSession } from '@/context/SessionContext';
 import type { BriefTypeConfig } from '@/types/brief-schema';
 import type { BriefSchema } from '@/types/brief-schema';
 import BriefOutput from './BriefOutput';
@@ -17,6 +18,7 @@ type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 
 export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
   const { operatorId } = useOperator();
+  const { user } = useSession();
   const isIntake = briefType.id === 'lead-intake';
   const isDiscovery = briefType.id === 'discovery';
   const isProduction = briefType.id === 'production';
@@ -42,6 +44,7 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
           briefTypeName: briefType.name,
           phase: briefType.phase,
           operatorId,
+          operatorEmail: user?.email || '',
           rawInput: input,
           briefOutput: JSON.stringify(data),
           gaps: data.gaps.map(g => g.text),

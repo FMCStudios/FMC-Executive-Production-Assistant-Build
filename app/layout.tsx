@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SessionProvider } from '@/context/SessionContext';
 import { OperatorProvider } from '@/context/OperatorContext';
 import './globals.css';
 
@@ -11,9 +12,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <OperatorProvider>
-          {children}
-        </OperatorProvider>
+        <SessionProvider>
+          <OperatorProvider>
+            {children}
+          </OperatorProvider>
+        </SessionProvider>
       </body>
     </html>
   );

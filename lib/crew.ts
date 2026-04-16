@@ -15,6 +15,7 @@ export type CrewMember = {
   otherRateLabel: string;
   notes: string;
   skills: string[];
+  accessLevel: string;
   // Computed
   displayName: string;
   fullName: string;
@@ -47,7 +48,7 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Roster!A2:N',
+    range: 'Roster!A2:O',
   });
 
   const rows = res.data.values || [];
@@ -73,12 +74,18 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
         otherRateLabel: row[11]?.trim() || '',
         notes: row[12]?.trim() || '',
         skills: (row[13] || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+        accessLevel: row[14]?.trim() || 'Crew',
         displayName: aka || firstName,
         fullName: `${firstName} ${lastName}`.trim(),
       };
     });
 
   return { success: true, crew };
+}
+
+export async function findCrewByEmail(email: string): Promise<CrewMember | null> {
+  const { crew } = await readCrewRoster();
+  return crew.find(c => c.email.toLowerCase() === email.toLowerCase()) || null;
 }
 
 export async function writeCrewMember(data: {
@@ -114,12 +121,14 @@ export async function writeCrewMember(data: {
     data.producingRate,
     data.otherRate,
     data.otherRateLabel,
-    '',
+    '',   // Notes
+    '',   // Skills
+    'Crew', // Access Level (default)
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'Roster!A:M',
+    range: 'Roster!A:O',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });

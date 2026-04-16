@@ -3,7 +3,7 @@ import { writeBriefToSheet } from '@/lib/sheets';
 
 export async function POST(req: Request) {
   try {
-    const { brandName, briefType, briefTypeName, phase, operatorId, rawInput, briefOutput } = await req.json();
+    const { brandName, briefType, briefTypeName, phase, operatorId, operatorEmail, crewOnBrief, rawInput, briefOutput } = await req.json();
 
     if (!briefOutput) {
       return NextResponse.json(
@@ -21,6 +21,8 @@ export async function POST(req: Request) {
       briefTypeName: briefTypeName || briefType || 'unknown',
       phase: phase || 0,
       operatorId: operatorId || 'unknown',
+      operatorEmail: operatorEmail || '',
+      crewOnBrief: crewOnBrief || '',
       rawInput: rawInput || '',
       data,
     });
