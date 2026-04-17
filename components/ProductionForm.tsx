@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import VoiceMic from './VoiceMic';
+import { useSession } from '@/context/SessionContext';
 import type { CrewMember } from '@/lib/crew';
 import type { GearItem } from '@/lib/gear';
 
@@ -32,15 +33,49 @@ function concatenate(active: Set<ModuleKey>, values: Record<ModuleKey, string>):
   return lines.join('\n');
 }
 
-type RateOption = { label: string; value: string };
+type CrewLineItem = {
+  id: string;
+  personEmail: string;
+  personName: string;
+  role: string;
+  days: number;
+  rate: number;
+};
 
-function getCrewRates(m: CrewMember): RateOption[] {
-  const rates: RateOption[] = [];
-  if (m.shootingRate) rates.push({ label: `Shoot $${m.shootingRate}`, value: m.shootingRate });
-  if (m.editingRate) rates.push({ label: `Edit $${m.editingRate}`, value: m.editingRate });
-  if (m.producingRate) rates.push({ label: `Produce $${m.producingRate}`, value: m.producingRate });
-  if (m.otherRate) rates.push({ label: `${m.otherRateLabel || 'Other'} $${m.otherRate}`, value: m.otherRate });
-  return rates;
+function getPersonRoles(m: CrewMember): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of [m.primaryRole, ...(m.otherRoles || [])]) {
+    const t = (r || '').trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+function autoRateForRole(m: CrewMember, role: string): number {
+  const shootingRoles = ['DP', 'Camera Op', 'Gaffer', 'Sound Mixer', 'BTS'];
+  const editingRoles = ['Editor', 'Colourist'];
+  const producingRoles = ['Producer', 'Supervising Producer', 'Production Assistant', 'Post Supervisor'];
+  const shooting = parseFloat(m.shootingRate || '0') || 0;
+  const editing = parseFloat(m.editingRate || '0') || 0;
+  const producing = parseFloat(m.producingRate || '0') || 0;
+  const other = parseFloat(m.otherRate || '0') || 0;
+  if (shootingRoles.includes(role)) return shooting;
+  if (editingRoles.includes(role)) return editing;
+  if (producingRoles.includes(role)) return producing;
+  return other || shooting || 0;
+}
+
+function formatCrewLines(lines: CrewLineItem[]): string {
+  if (lines.length === 0) return '';
+  const rows = lines.map(l => {
+    const sub = (l.days * l.rate).toFixed(2);
+    return `${l.personName} — ${l.role}, ${l.days}d × $${l.rate}/d = $${sub}`;
+  });
+  const total = lines.reduce((s, l) => s + l.days * l.rate, 0);
+  return rows.join('\n') + `\n\nTotal: $${total.toFixed(2)}`;
 }
 
 export default function ProductionForm({
@@ -50,6 +85,9 @@ export default function ProductionForm({
   onInputChange: (value: string) => void;
   disabled: boolean;
 }) {
+  const { user } = useSession();
+  const isAdmin = user?.accessLevel === 'Admin';
+
   const [active, setActive] = useState<Set<ModuleKey>>(new Set(ALL_KEYS));
   const [values, setValues] = useState<Record<ModuleKey, string>>({
     callSheet: '', gearList: '', crewSheet: '', creativeRef: '', paperEdit: '', strategyEcho: '',
@@ -69,12 +107,21 @@ export default function ProductionForm({
   const [gearLibrary, setGearLibrary] = useState<GearItem[]>([]);
   const [crewLoading, setCrewLoading] = useState(false);
   const [crewOpen, setCrewOpen] = useState(false);
-  const [crewSelected, setCrewSelected] = useState<Set<number>>(new Set());
-  const [selectedRates, setSelectedRates] = useState<Map<number, string>>(new Map());
+  const [crewSelected, setCrewSelected] = useState<Set<string>>(new Set());
+  const [showOwner, setShowOwner] = useState(false);
   // Gear add-on panel (shown after crew applied)
   const [gearPanelOpen, setGearPanelOpen] = useState(false);
-  const [appliedCrewNames, setAppliedCrewNames] = useState<Set<string>>(new Set());
   const [extraGearSelected, setExtraGearSelected] = useState<Set<number>>(new Set());
+
+  // Line items — authoritative model for crew sheet
+  const [crewLines, setCrewLines] = useState<CrewLineItem[]>([]);
+  const [gearAppliedEmails, setGearAppliedEmails] = useState<Set<string>>(new Set());
+
+  // Sync line items → crewSheet textarea
+  useEffect(() => {
+    setValue('crewSheet', formatCrewLines(crewLines));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewLines]);
 
   const fetchCrew = useCallback(async () => {
     if (crewRoster.length > 0) { setCrewOpen(true); return; }
@@ -91,45 +138,95 @@ export default function ProductionForm({
     setCrewLoading(false);
   }, [crewRoster.length]);
 
-  const setRate = (idx: number, rate: string) => {
-    setSelectedRates((prev) => { const n = new Map(prev); n.set(idx, rate); return n; });
+  const visibleRoster = useMemo(() => {
+    return crewRoster.filter(m => {
+      if (m.rosterType === 'owner' && !showOwner) return false;
+      return true;
+    });
+  }, [crewRoster, showOwner]);
+
+  const hiddenOwnerCount = useMemo(
+    () => crewRoster.filter(m => m.rosterType === 'owner').length,
+    [crewRoster]
+  );
+
+  const toggleCrewSelected = (email: string) => {
+    setCrewSelected(prev => {
+      const n = new Set(prev);
+      if (n.has(email)) n.delete(email); else n.add(email);
+      return n;
+    });
   };
 
   const applyCrewSelection = () => {
-    const selected = Array.from(crewSelected).map((i) => crewRoster[i]).filter(Boolean);
-    const names = new Set(selected.map(m => m.fullName.toLowerCase()));
+    const selected = Array.from(crewSelected)
+      .map(email => crewRoster.find(m => m.email.toLowerCase() === email.toLowerCase()))
+      .filter((m): m is CrewMember => !!m);
 
-    // Build crew sheet with selected rates
-    const crewLines = selected.map((m, si) => {
-      const idx = Array.from(crewSelected)[si];
-      const rates = getCrewRates(m);
-      const chosenRate = selectedRates.get(idx) || rates[0]?.value || '';
-      const ratePart = chosenRate ? `, $${chosenRate}/day` : '';
-      const parts = [`${m.displayName} (${m.fullName}) — ${m.primaryRole}${ratePart}`];
-      if (m.phone) parts.push(m.phone);
-      return parts.join(', ');
-    }).join('\n');
-    setValue('crewSheet', values.crewSheet ? values.crewSheet + '\n' + crewLines : crewLines);
+    if (selected.length === 0) return;
 
-    // Build crew kit gear (no rental — comes with them)
-    const crewGear = gearLibrary.filter(g => names.has(g.owner.toLowerCase()));
-    if (crewGear.length > 0) {
-      const lines = ['--- Crew kit (included) ---'];
-      for (const g of crewGear) {
-        const label = g.brand ? `${g.brand} ${g.itemName}` : g.itemName;
-        lines.push(`[${g.category || 'Gear'}] ${label} (${g.owner})`);
+    // Append new line items
+    const newLines: CrewLineItem[] = selected.map(m => ({
+      id: crypto.randomUUID(),
+      personEmail: m.email,
+      personName: m.displayName || m.fullName,
+      role: m.primaryRole,
+      days: 1,
+      rate: autoRateForRole(m, m.primaryRole),
+    }));
+
+    setCrewLines(prev => [...prev, ...newLines]);
+
+    // Gear auto-bundling — only for emails we haven't already bundled gear for
+    const newEmails = new Set<string>();
+    const newFullnames = new Set<string>();
+    for (const m of selected) {
+      const key = m.email.toLowerCase();
+      if (!gearAppliedEmails.has(key)) {
+        newEmails.add(key);
+        newFullnames.add(m.fullName.toLowerCase());
       }
-      setValue('gearList', values.gearList ? values.gearList + '\n' + lines.join('\n') : lines.join('\n'));
     }
 
-    setAppliedCrewNames(names);
+    if (newFullnames.size > 0) {
+      const crewGear = gearLibrary.filter(g => newFullnames.has(g.owner.toLowerCase()));
+      if (crewGear.length > 0) {
+        const lines = ['--- Crew kit (included) ---'];
+        for (const g of crewGear) {
+          const label = g.brand ? `${g.brand} ${g.itemName}` : g.itemName;
+          lines.push(`[${g.category || 'Gear'}] ${label} (${g.owner})`);
+        }
+        setValue('gearList', values.gearList ? values.gearList + '\n' + lines.join('\n') : lines.join('\n'));
+      }
+      setGearAppliedEmails(prev => {
+        const n = new Set(prev);
+        Array.from(newEmails).forEach(e => n.add(e));
+        return n;
+      });
+    }
+
     setCrewOpen(false);
     setCrewSelected(new Set());
-    setSelectedRates(new Map());
 
     // Open gear add-on panel if there's additional gear available
-    const hasExtra = gearLibrary.some(g => !names.has(g.owner.toLowerCase()));
+    const onShoot = new Set<string>();
+    Array.from(gearAppliedEmails).forEach(e => onShoot.add(e));
+    Array.from(newEmails).forEach(e => onShoot.add(e));
+    const onShootNames = new Set(
+      crewRoster
+        .filter(m => onShoot.has(m.email.toLowerCase()))
+        .map(m => m.fullName.toLowerCase())
+    );
+    const hasExtra = gearLibrary.some(g => !onShootNames.has(g.owner.toLowerCase()));
     if (hasExtra) setGearPanelOpen(true);
+  };
+
+  const updateLine = (id: string, patch: Partial<CrewLineItem>) => {
+    setCrewLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+  };
+
+  const removeLine = (id: string) => {
+    setCrewLines(prev => prev.filter(l => l.id !== id));
   };
 
   const applyExtraGear = () => {
@@ -165,11 +262,22 @@ export default function ProductionForm({
     gearCountByOwner.set(key, (gearCountByOwner.get(key) || 0) + 1);
   }
 
+  const appliedCrewOwnerNames = useMemo(() => {
+    const emails = new Set(crewLines.map(l => l.personEmail.toLowerCase()));
+    return new Set(
+      crewRoster
+        .filter(m => emails.has(m.email.toLowerCase()))
+        .map(m => m.fullName.toLowerCase())
+    );
+  }, [crewLines, crewRoster]);
+
   const otherCrewGear = gearLibrary.filter(g => {
     const owner = g.owner.toLowerCase();
-    return !appliedCrewNames.has(owner) && !/^fmc|^house/i.test(owner);
+    return !appliedCrewOwnerNames.has(owner) && !/^fmc|^house/i.test(owner);
   });
   const houseGear = gearLibrary.filter(g => /^fmc|^house/i.test(g.owner));
+
+  const runningTotal = crewLines.reduce((s, l) => s + l.days * l.rate, 0);
 
   return (
     <div className="space-y-5">
@@ -203,11 +311,12 @@ export default function ProductionForm({
         const isActive = active.has(mod.key);
         const showExpandedCrew = mod.key === 'crewSheet' && crewOpen;
         const showGearPanel = mod.key === 'gearList' && gearPanelOpen;
+        const showLines = mod.key === 'crewSheet' && crewLines.length > 0;
         return (
           <div
             key={mod.key}
             style={{
-              maxHeight: isActive ? (showExpandedCrew || showGearPanel ? '800px' : '300px') : '0px',
+              maxHeight: isActive ? (showExpandedCrew || showGearPanel || showLines ? 'none' : '300px') : '0px',
               opacity: isActive ? 1 : 0,
               overflow: isActive ? 'visible' : 'hidden',
               transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -226,12 +335,130 @@ export default function ProductionForm({
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
                       </svg>
-                      {crewLoading ? 'Loading...' : 'Pull from roster'}
+                      {crewLoading ? 'Loading...' : crewLines.length > 0 ? 'Add crew line' : 'Pull from roster'}
                     </button>
                   )}
                   <VoiceMic onTranscript={(t) => setValue(mod.key, values[mod.key] ? values[mod.key] + ' ' + t : t)} disabled={disabled} />
                 </div>
               </div>
+
+              {/* ── Crew line items (above textarea) ── */}
+              {mod.key === 'crewSheet' && crewLines.length > 0 && (
+                <div className="glass-panel p-4 space-y-2 animate-fadeUp">
+                  {crewLines.map(line => {
+                    const member = crewRoster.find(m => m.email.toLowerCase() === line.personEmail.toLowerCase());
+                    const roleOptions = member ? getPersonRoles(member) : [line.role];
+                    const subtotal = line.days * line.rate;
+                    return (
+                      <div key={line.id} className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={line.personEmail}
+                          onChange={(e) => {
+                            const next = crewRoster.find(m => m.email === e.target.value);
+                            if (!next) return;
+                            const nextRoles = getPersonRoles(next);
+                            const nextRole = nextRoles.includes(line.role) ? line.role : (next.primaryRole || nextRoles[0] || line.role);
+                            updateLine(line.id, {
+                              personEmail: next.email,
+                              personName: next.displayName || next.fullName,
+                              role: nextRole,
+                              rate: autoRateForRole(next, nextRole),
+                            });
+                          }}
+                          className="glass-input px-2 py-1 text-xs flex-1 min-w-[140px]"
+                        >
+                          {crewRoster.map(m => (
+                            <option key={m.email} value={m.email}>{m.displayName || m.fullName}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={line.role}
+                          onChange={(e) => {
+                            const role = e.target.value;
+                            const rate = member ? autoRateForRole(member, role) : line.rate;
+                            updateLine(line.id, { role, rate });
+                          }}
+                          className="glass-input px-2 py-1 text-xs min-w-[120px]"
+                        >
+                          {roleOptions.length === 0 && <option value={line.role}>{line.role}</option>}
+                          {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => updateLine(line.id, { days: Math.max(0.5, line.days - 0.5) })}
+                            className="btn-ghost p-1 text-xs leading-none w-6 h-6 flex items-center justify-center"
+                            aria-label="Decrement days"
+                          >−</button>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            value={line.days}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value);
+                              if (!isNaN(v) && v >= 0.5) updateLine(line.id, { days: v });
+                            }}
+                            className="glass-input px-1 py-1 text-xs w-14 text-center"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => updateLine(line.id, { days: line.days + 0.5 })}
+                            className="btn-ghost p-1 text-xs leading-none w-6 h-6 flex items-center justify-center"
+                            aria-label="Increment days"
+                          >+</button>
+                          <span className="text-[10px] text-white/40 ml-0.5">d</span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-white/40">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={line.rate}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value);
+                              updateLine(line.id, { rate: isNaN(v) ? 0 : v });
+                            }}
+                            className="glass-input px-2 py-1 text-xs w-20"
+                            style={{ MozAppearance: 'textfield' }}
+                          />
+                          <span className="text-[10px] text-white/40">/d</span>
+                        </div>
+
+                        <span className="text-xs text-fmc-offwhite font-medium ml-auto">
+                          = ${subtotal.toFixed(2)}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => removeLine(line.id)}
+                          className="text-white/40 hover:text-fmc-firestarter text-lg leading-none px-1 active:scale-[0.97]"
+                          style={{ transition: 'color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                          aria-label="Remove line"
+                        >×</button>
+                      </div>
+                    );
+                  })}
+
+                  <div className="pt-3 mt-1 flex items-center justify-between border-t border-white/[0.06]">
+                    <button
+                      type="button"
+                      onClick={fetchCrew}
+                      disabled={disabled || crewLoading}
+                      className="btn-ghost px-3 py-1.5 text-[11px] active:scale-[0.97]"
+                    >
+                      + Add crew line
+                    </button>
+                    <span className="text-sm font-bold text-fmc-offwhite">
+                      Total: ${runningTotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <textarea
                 className="glass-input w-full px-3 py-2.5 text-sm resize-y min-h-[80px]"
                 placeholder={mod.placeholder}
@@ -240,62 +467,46 @@ export default function ProductionForm({
                 disabled={disabled}
               />
 
-              {/* ── Crew picker with rate selection ── */}
-              {mod.key === 'crewSheet' && crewOpen && crewRoster.length > 0 && (
+              {/* ── Crew picker ── */}
+              {mod.key === 'crewSheet' && crewOpen && visibleRoster.length > 0 && (
                 <div className="rounded-xl p-3 animate-fadeUp" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                   <div className="space-y-1 max-h-[280px] overflow-y-auto mb-3">
-                    {crewRoster.map((m, i) => {
-                      const selected = crewSelected.has(i);
+                    {visibleRoster.map((m) => {
+                      const selected = crewSelected.has(m.email);
                       const gearCount = gearCountByOwner.get(m.fullName.toLowerCase()) || 0;
-                      const rates = getCrewRates(m);
-                      const chosenRate = selectedRates.get(i);
                       return (
-                        <div key={i}>
-                          <button type="button"
-                            onClick={() => { setCrewSelected((prev) => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; }); }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs active:scale-[0.97]"
-                            style={{ background: selected ? 'rgba(224,52,19,0.08)' : 'transparent', transition: 'background 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                          >
-                            <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
-                              style={{ background: selected ? 'rgba(224,52,19,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${selected ? 'rgba(224,52,19,0.4)' : 'rgba(255,255,255,0.08)'}` }}>
-                              {selected && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#E03413" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-                            </span>
-                            <span className="text-fmc-offwhite font-medium">{m.displayName}</span>
-                            <span className="text-white/30">{m.primaryRole}</span>
-                            {gearCount > 0 && <span className="text-fmc-teal/50 text-[10px]">{gearCount} gear</span>}
-                            {rates.length === 1 && <span className="text-fmc-firestarter/50 ml-auto text-[10px]">${rates[0].value}/day</span>}
-                          </button>
-                          {/* Rate pills — show if selected and multiple rates */}
-                          {selected && rates.length > 1 && (
-                            <div className="flex flex-wrap gap-1.5 ml-8 mt-1 mb-1.5 animate-fadeUp">
-                              {rates.map((r, ri) => {
-                                const isChosen = chosenRate === r.value || (!chosenRate && ri === 0);
-                                return (
-                                  <button key={ri} type="button"
-                                    onClick={(e) => { e.stopPropagation(); setRate(i, r.value); }}
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-medium active:scale-[0.97]"
-                                    style={{
-                                      background: isChosen ? 'rgba(224,52,19,0.12)' : 'transparent',
-                                      border: `1px solid ${isChosen ? 'rgba(224,52,19,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                                      color: isChosen ? '#E03413' : 'rgba(255,255,255,0.4)',
-                                      transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                                    }}
-                                  >
-                                    {r.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+                        <button key={m.email} type="button"
+                          onClick={() => toggleCrewSelected(m.email)}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs active:scale-[0.97]"
+                          style={{ background: selected ? 'rgba(224,52,19,0.08)' : 'transparent', transition: 'background 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                        >
+                          <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                            style={{ background: selected ? 'rgba(224,52,19,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${selected ? 'rgba(224,52,19,0.4)' : 'rgba(255,255,255,0.08)'}` }}>
+                            {selected && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#E03413" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                          </span>
+                          <span className="text-fmc-offwhite font-medium">{m.displayName}</span>
+                          <span className="text-white/30">{m.primaryRole}</span>
+                          {gearCount > 0 && <span className="text-fmc-teal/50 text-[10px]">{gearCount} gear</span>}
+                          {m.rosterType === 'owner' && <span className="text-fmc-copper/60 text-[9px] uppercase tracking-[0.15em] ml-auto">Owner</span>}
+                        </button>
                       );
                     })}
                   </div>
+                  {isAdmin && hiddenOwnerCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOwner(s => !s)}
+                      className="text-[10px] text-white/40 hover:text-fmc-firestarter/80 mb-2 active:scale-[0.97]"
+                      style={{ transition: 'color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                    >
+                      {showOwner ? 'Hide owner' : 'Include owner (admin only)'}
+                    </button>
+                  )}
                   <div className="flex gap-2">
                     <button type="button" onClick={applyCrewSelection} disabled={crewSelected.size === 0} className="btn-firestarter px-3 py-1.5 text-[10px]">
                       Add {crewSelected.size} to brief + gear
                     </button>
-                    <button type="button" onClick={() => { setCrewOpen(false); setCrewSelected(new Set()); setSelectedRates(new Map()); }} className="btn-ghost px-3 py-1.5 text-[10px]">Cancel</button>
+                    <button type="button" onClick={() => { setCrewOpen(false); setCrewSelected(new Set()); }} className="btn-ghost px-3 py-1.5 text-[10px]">Cancel</button>
                   </div>
                 </div>
               )}

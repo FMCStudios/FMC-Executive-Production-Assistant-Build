@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { useSession } from '@/context/SessionContext';
+import { useProfileModal } from '@/context/ProfileModalContext';
 
 type Brief = {
   date: string;
@@ -19,6 +20,7 @@ type Brief = {
 export default function DashboardPage() {
   const { user, loading } = useSession();
   const router = useRouter();
+  const profileModal = useProfileModal();
   const [wrote, setWrote] = useState<Brief[]>([]);
   const [onBrief, setOnBrief] = useState<Brief[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -56,7 +58,7 @@ export default function DashboardPage() {
               <button onClick={() => router.push('/crew')} className="btn-ghost px-4 py-2 text-xs active:scale-[0.97]">
                 Crew &amp; Gear
               </button>
-              <button onClick={() => router.push('/profile')} className="btn-ghost px-4 py-2 text-xs active:scale-[0.97]">
+              <button onClick={() => profileModal.open()} className="btn-ghost px-4 py-2 text-xs active:scale-[0.97]">
                 My Profile
               </button>
             </div>

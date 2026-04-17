@@ -38,6 +38,7 @@ export default function OperatorSelector() {
         >
           {activeOperator.initials}
         </span>
+        <span className="text-[9px] uppercase tracking-[0.15em] text-white/40 font-medium">Viewing as</span>
         <span className="text-white/70">{activeOperator.name}</span>
         <svg
           width="10"

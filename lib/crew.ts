@@ -1,5 +1,7 @@
 import { google } from 'googleapis';
 
+export type RosterType = 'owner' | 'team' | 'freelance';
+
 export type CrewMember = {
   firstName: string;
   lastName: string;
@@ -16,10 +18,17 @@ export type CrewMember = {
   notes: string;
   skills: string[];
   accessLevel: string;
+  rosterType?: RosterType;
   // Computed
   displayName: string;
   fullName: string;
 };
+
+function parseRosterType(raw: string | undefined): RosterType {
+  const v = (raw || '').trim().toLowerCase();
+  if (v === 'owner' || v === 'team' || v === 'freelance') return v;
+  return 'team';
+}
 
 function getAuth() {
   const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
@@ -73,8 +82,9 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
         otherRate: row[10]?.trim() || '',
         otherRateLabel: row[11]?.trim() || '',
         notes: row[12]?.trim() || '',
-        skills: (row[13] || '').split(',').map((s: string) => s.trim()).filter(Boolean),
-        accessLevel: row[14]?.trim() || 'Crew',
+        skills: [],
+        accessLevel: row[13]?.trim() || 'Crew',
+        rosterType: parseRosterType(row[14]),
         displayName: aka || firstName,
         fullName: `${firstName} ${lastName}`.trim(),
       };
@@ -121,9 +131,9 @@ export async function writeCrewMember(data: {
     data.producingRate,
     data.otherRate,
     data.otherRateLabel,
-    '',   // Notes
-    '',   // Skills
-    'Crew', // Access Level (default)
+    '',      // M: Notes
+    'Crew',  // N: Access Level (default)
+    'team',  // O: Roster Type (default)
   ];
 
   await sheets.spreadsheets.values.append({
@@ -133,5 +143,63 @@ export async function writeCrewMember(data: {
     requestBody: { values: [row] },
   });
 
+  return { success: true };
+}
+
+export async function writeRosterUpdate(
+  email: string,
+  updates: { rosterType?: RosterType; otherRoles?: string }
+): Promise<{ success: boolean; error?: string }> {
+  const config = getAuth();
+  if (!config) return { success: false, error: 'Sheets not configured' };
+
+  const { auth, spreadsheetId } = config;
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  const target = email.trim().toLowerCase();
+  if (!target) return { success: false, error: 'Email required' };
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'Roster!A2:O',
+  });
+
+  const rows = res.data.values || [];
+  const rowIndex = rows.findIndex((r) => (r[5] || '').toString().trim().toLowerCase() === target);
+
+  if (rowIndex === -1) {
+    return { success: false, error: 'Email not in roster' };
+  }
+
+  const sheetRow = rowIndex + 2; // +1 for header, +1 for 1-indexing
+  const writes: Promise<unknown>[] = [];
+
+  if (typeof updates.otherRoles === 'string') {
+    writes.push(
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Roster!E${sheetRow}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[updates.otherRoles]] },
+      })
+    );
+  }
+
+  if (updates.rosterType) {
+    writes.push(
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Roster!O${sheetRow}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[updates.rosterType]] },
+      })
+    );
+  }
+
+  if (writes.length === 0) {
+    return { success: true };
+  }
+
+  await Promise.all(writes);
   return { success: true };
 }

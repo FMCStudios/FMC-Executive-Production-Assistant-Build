@@ -36,15 +36,16 @@ export async function POST(req: Request) {
 
     const oldRow = rows[rowIndex];
     const fields = ['First Name', 'Last Name', 'AKA', 'Primary Role', 'Other Roles', 'Email', 'Phone',
-      'Shooting Rate', 'Editing Rate', 'Producing Rate', 'Other Rate', 'Other Rate Label', 'Notes', 'Skills'];
+      'Shooting Rate', 'Editing Rate', 'Producing Rate', 'Other Rate', 'Other Rate Label', 'Notes'];
 
     const newRow = [
       profile.firstName || '', profile.lastName || '', profile.aka || '',
       profile.primaryRole || '', profile.otherRoles || '', profile.email || '',
       profile.phone || '', profile.shootingRate || '', profile.editingRate || '',
       profile.producingRate || '', profile.otherRate || '', profile.otherRateLabel || '',
-      profile.notes || '', profile.skills || '',
-      oldRow[14] || 'Crew', // Preserve access level
+      profile.notes || '',
+      oldRow[13] || 'Crew', // N: preserve access level
+      oldRow[14] || 'team', // O: preserve roster type
     ];
 
     // Compute diff
