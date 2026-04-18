@@ -44,8 +44,6 @@ export async function POST(req: Request) {
       profile.phone || '', profile.shootingRate || '', profile.editingRate || '',
       profile.producingRate || '', profile.otherRate || '', profile.otherRateLabel || '',
       profile.notes || '',
-      oldRow[13] || 'Crew', // N: preserve access level
-      oldRow[14] || 'team', // O: preserve roster type
     ];
 
     // Compute diff
@@ -58,11 +56,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // Write updated row (A{row}:O{row})
+    // Write updated row (A{row}:M{row}) — N (Access Level) and O (Roster Type)
+    // are admin-owned and only written by /api/roster/update
     const sheetRow = rowIndex + 2; // +2 for header + 0-index
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `Roster!A${sheetRow}:O${sheetRow}`,
+      range: `Roster!A${sheetRow}:M${sheetRow}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [newRow] },
     });
