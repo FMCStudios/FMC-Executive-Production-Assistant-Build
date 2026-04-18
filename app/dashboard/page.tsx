@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { useSession } from '@/context/SessionContext';
-import { useProfileModal } from '@/context/ProfileModalContext';
 
 type Brief = {
   date: string;
@@ -19,8 +17,6 @@ type Brief = {
 
 export default function DashboardPage() {
   const { user, loading } = useSession();
-  const router = useRouter();
-  const profileModal = useProfileModal();
   const [wrote, setWrote] = useState<Brief[]>([]);
   const [onBrief, setOnBrief] = useState<Brief[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -48,21 +44,6 @@ export default function DashboardPage() {
               {user?.accessLevel === 'Crew' ? 'Your briefs and assignments.' : 'Your briefs and pipeline.'}
             </p>
           </div>
-
-          {/* Quick actions for supervisors */}
-          {user && user.accessLevel !== 'Crew' && (
-            <div className="flex flex-wrap gap-3 mb-8">
-              <button onClick={() => router.push('/')} className="btn-ghost px-4 py-2 text-xs active:scale-[0.97]">
-                New Brief
-              </button>
-              <button onClick={() => router.push('/crew')} className="btn-ghost px-4 py-2 text-xs active:scale-[0.97]">
-                Crew &amp; Gear
-              </button>
-              <button onClick={() => profileModal.open()} className="btn-ghost px-4 py-2 text-xs active:scale-[0.97]">
-                My Profile
-              </button>
-            </div>
-          )}
 
           {fetching && <div className="text-sm text-white/40 animate-pulse">Loading briefs...</div>}
 
