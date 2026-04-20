@@ -44,6 +44,13 @@ export async function POST(req: Request) {
     }
 
     const oldRow = rows[rowIndex];
+    // Gear rows in the sheet are keyed by "First Last" — take that from the
+    // row we're about to write (admin-edit mode: row belongs to the target
+    // user, not the session user). Fall back to the incoming form if the
+    // row is somehow empty.
+    const targetFullName =
+      `${oldRow[0] || ''} ${oldRow[1] || ''}`.trim()
+      || `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
     // Fields we track for the diff. Indices in `oldRow`:
     //   A–M = 0–12, P (Skills) = 15
     const fields = ['First Name', 'Last Name', 'AKA', 'Primary Role', 'Other Roles', 'Email', 'Phone',
@@ -90,18 +97,30 @@ export async function POST(req: Request) {
       }),
     ]);
 
-    // Update gear: clear old gear for this owner, write new
-    const fullName = `${profile.firstName} ${profile.lastName}`.trim();
-    if (gear && Array.isArray(gear)) {
-      // Read existing gear, find rows to clear
-      const gearRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'Gear Library!A2:H' });
-      const gearRows = gearRes.data.values || [];
-      // We can't easily delete rows via Sheets API values, so we overwrite with new gear
-      // For simplicity, append new gear items (admin manages cleanup in Sheets)
-      const newGear = gear.filter((g: { itemName: string }) => g.itemName?.trim());
-      if (newGear.length > 0) {
-        await writeGearItems(fullName, newGear);
-      }
+    // Gear update: replace-by-owner. We always call through when gear is
+    // provided, even if the list is empty — that's a valid "user cleared
+    // their gear" state. writeGearItems deletes then appends.
+    if (Array.isArray(gear)) {
+      const cleanGear = gear
+        .filter((g: { itemName?: string }) => g.itemName?.trim())
+        .map((g: {
+          itemName: string;
+          brand?: string;
+          category?: string;
+          rentalRate?: string;
+          condition?: string;
+          serialNumber?: string;
+          notes?: string;
+        }) => ({
+          itemName: g.itemName.trim(),
+          brand: (g.brand || '').trim(),
+          category: (g.category || '').trim(),
+          rentalRate: (g.rentalRate || '').trim(),
+          condition: (g.condition || '').trim(),
+          serialNumber: (g.serialNumber || '').trim(),
+          notes: (g.notes || '').trim(),
+        }));
+      await writeGearItems(targetFullName, cleanGear);
     }
 
     // Email admin if changes detected — skip when admin is editing someone else
