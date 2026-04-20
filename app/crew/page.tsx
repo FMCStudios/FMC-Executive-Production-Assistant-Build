@@ -3,12 +3,17 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import { useSession } from '@/context/SessionContext';
+import { useProfileModal } from '@/context/ProfileModalContext';
 import type { CrewMember } from '@/lib/crew';
 import type { GearItem } from '@/lib/gear';
 
 export default function CrewPage() {
   const { user } = useSession();
-  const canSeeRates = user?.accessLevel === 'Admin' || user?.accessLevel === 'Supervisor';
+  const profileModal = useProfileModal();
+  const isAdmin = user?.accessLevel === 'Admin';
+  // Rates are now visible to every signed-in user. Ferg can flip this back
+  // to Admin/Supervisor-only by restoring the old guard.
+  const canSeeRates = !!user;
   const [crew, setCrew] = useState<CrewMember[]>([]);
   const [gear, setGear] = useState<GearItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +53,9 @@ export default function CrewPage() {
               Crew &amp; Gear
             </h1>
             <p className="text-sm text-white/50">
-              Managed in Google Sheets — read-only view.
+              {isAdmin
+                ? 'Full directory — click Edit on any card to update that crew member.'
+                : 'Full directory — click Edit on your own card to update your profile.'}
             </p>
           </div>
 
@@ -94,7 +101,7 @@ export default function CrewPage() {
                     className="glass-panel p-5 opacity-0 animate-fadeUp"
                     style={{ animationDelay: `${i * 60}ms` }}
                   >
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-start gap-3 mb-3">
                       <span
                         className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                         style={{
@@ -105,7 +112,7 @@ export default function CrewPage() {
                       >
                         {member.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </span>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <span className="text-sm font-semibold text-fmc-offwhite block">
                           {member.displayName}
                         </span>
@@ -114,6 +121,20 @@ export default function CrewPage() {
                         )}
                         <span className="text-xs text-fmc-copper">{member.primaryRole}</span>
                       </div>
+                      {(() => {
+                        const isSelf = !!user && member.email.toLowerCase() === user.email.toLowerCase();
+                        const canEdit = isSelf || isAdmin;
+                        if (!canEdit) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => profileModal.open(isSelf ? undefined : member.email)}
+                            className="btn-ghost px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] active:scale-[0.97]"
+                          >
+                            Edit
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     {/* Other roles */}

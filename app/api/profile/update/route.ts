@@ -8,7 +8,16 @@ export async function POST(req: Request) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { profile, gear } = await req.json();
+  const { profile, gear, targetEmail } = await req.json();
+
+  // Admin-edit mode: an Admin can edit any roster row by passing targetEmail.
+  // Non-admins ignore targetEmail and can only edit their own row.
+  const wantsOtherTarget = typeof targetEmail === 'string' && targetEmail.trim().length > 0;
+  if (wantsOtherTarget && session.accessLevel !== 'Admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+  const emailToEdit: string = wantsOtherTarget ? targetEmail.trim() : session.email;
+  const editingOther = emailToEdit.toLowerCase() !== session.email.toLowerCase();
 
   const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
   const privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -28,7 +37,7 @@ export async function POST(req: Request) {
     // Find the user's row in Roster
     const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'Roster!A2:P' });
     const rows = res.data.values || [];
-    const rowIndex = rows.findIndex(row => (row[5] || '').toLowerCase() === session.email.toLowerCase());
+    const rowIndex = rows.findIndex(row => (row[5] || '').toLowerCase() === emailToEdit.toLowerCase());
 
     if (rowIndex === -1) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -95,8 +104,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // Email admin if changes detected
-    if (changes.length > 0 && process.env.ADMIN_EMAIL) {
+    // Email admin if changes detected — skip when admin is editing someone else
+    // (admin already knows what they did).
+    if (changes.length > 0 && !editingOther && process.env.ADMIN_EMAIL) {
       const name = `${profile.firstName} ${profile.lastName}`.trim();
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);

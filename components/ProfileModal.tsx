@@ -64,7 +64,7 @@ const emptyProfile: ProfileForm = {
 };
 
 export default function ProfileModal() {
-  const { isOpen, close } = useProfileModal();
+  const { isOpen, editingEmail, close } = useProfileModal();
   const { user } = useSession();
 
   const [loading, setLoading] = useState(true);
@@ -79,6 +79,8 @@ export default function ProfileModal() {
   const [discardPrompt, setDiscardPrompt] = useState(false);
 
   const isAdmin = user?.accessLevel === 'Admin';
+  const editingOther = isAdmin && !!editingEmail && editingEmail.toLowerCase() !== user?.email.toLowerCase();
+  const targetEmail = editingOther ? editingEmail! : user?.email || '';
 
   // Fetch crew roster and prefill
   useEffect(() => {
@@ -89,21 +91,24 @@ export default function ProfileModal() {
       .then(r => r.json())
       .then((d: { crew?: CrewApi[] }) => {
         const crew = d.crew || [];
-        const me = crew.find(c => c.email.toLowerCase() === user.email.toLowerCase());
-        const myProfile: ProfileForm = me ? {
-          firstName: me.firstName, lastName: me.lastName, aka: me.aka,
-          primaryRole: me.primaryRole, otherRoles: me.otherRoles?.join(', ') || '',
-          email: me.email, phone: me.phone,
-          shootingRate: me.shootingRate, editingRate: me.editingRate,
-          producingRate: me.producingRate, otherRate: me.otherRate,
-          otherRateLabel: me.otherRateLabel, notes: me.notes || '',
-          skills: me.skills?.join(', ') || '',
+        const subject = crew.find(c => c.email.toLowerCase() === targetEmail.toLowerCase());
+        const subjectProfile: ProfileForm = subject ? {
+          firstName: subject.firstName, lastName: subject.lastName, aka: subject.aka,
+          primaryRole: subject.primaryRole, otherRoles: subject.otherRoles?.join(', ') || '',
+          email: subject.email, phone: subject.phone,
+          shootingRate: subject.shootingRate, editingRate: subject.editingRate,
+          producingRate: subject.producingRate, otherRate: subject.otherRate,
+          otherRateLabel: subject.otherRateLabel, notes: subject.notes || '',
+          skills: subject.skills?.join(', ') || '',
         } : emptyProfile;
-        setProfile(myProfile);
-        setProfileInitial(myProfile);
+        setProfile(subjectProfile);
+        setProfileInitial(subjectProfile);
 
         if (user.accessLevel === 'Admin') {
-          const rows: TeamRow[] = crew.map(c => ({
+          const source = editingOther
+            ? crew.filter(c => c.email.toLowerCase() === targetEmail.toLowerCase())
+            : crew;
+          const rows: TeamRow[] = source.map(c => ({
             email: c.email,
             name: c.displayName || c.fullName,
             rosterType: c.rosterType || 'team',
@@ -115,7 +120,7 @@ export default function ProfileModal() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isOpen, user]);
+  }, [isOpen, user, targetEmail, editingOther]);
 
   // Escape key
   useEffect(() => {
@@ -187,7 +192,10 @@ export default function ProfileModal() {
         const res = await fetch('/api/profile/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ profile }),
+          body: JSON.stringify({
+            profile,
+            targetEmail: editingOther ? targetEmail : undefined,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (typeof data?.changes === 'number') changedFields += data.changes;
@@ -253,8 +261,14 @@ export default function ProfileModal() {
           <div className="p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-fmc-offwhite mb-1">Profile</h1>
-                <p className="text-sm text-white/40">Update your info, rates, and skills.</p>
+                <h1 className="text-2xl font-bold tracking-tight text-fmc-offwhite mb-1">
+                  {editingOther ? `Editing ${profile.firstName || targetEmail}` : 'Profile'}
+                </h1>
+                <p className="text-sm text-white/40">
+                  {editingOther
+                    ? 'Admin edit — changes save to this crew member.'
+                    : 'Update your info, rates, and skills.'}
+                </p>
               </div>
               <button
                 type="button"
