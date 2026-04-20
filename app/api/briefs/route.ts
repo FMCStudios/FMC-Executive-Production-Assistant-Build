@@ -8,6 +8,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const scope = searchParams.get('scope'); // 'all' = team-wide (supervisor/admin only)
+  const statusFilter = (searchParams.get('status') || 'active').toLowerCase(); // active | archived | all
 
   const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
   const privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
         operator: row[4] || '',
         project: row[5] || '',
         client: row[6] || '',
-        status: row[7] || '',
+        status: row[7] || 'Generated',
         criticalGaps: Number(row[8] || 0),
         totalGaps: Number(row[9] || 0),
         owners: row[10] || '',
@@ -56,6 +57,12 @@ export async function GET(req: Request) {
         leadState: row[19] || '',
         company: row[20] || '',
       }))
+      .filter(b => {
+        const s = (b.status || 'Generated').toLowerCase();
+        if (statusFilter === 'active') return s !== 'archived';
+        if (statusFilter === 'archived') return s === 'archived';
+        return true;
+      })
       .reverse();
 
     if (scope === 'all') {

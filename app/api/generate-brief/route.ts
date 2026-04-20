@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { brands } from '@/lib/brands';
 import { briefTypes, buildSystemPrompt } from '@/lib/briefs';
-import { generateBrief, type UpstreamContext } from '@/lib/api';
+import { generateBrief, type UpstreamBriefs } from '@/lib/api';
 import type { BriefSchema, LeadState } from '@/types/brief-schema';
 import { LEAD_STATES } from '@/types/brief-schema';
 
@@ -27,8 +27,8 @@ const ROLE_CONTEXT: Record<string, string> = {
     'You are assisting a colourist. Focus on grade references, delivery color spaces, mood, and technical finishing notes.',
 };
 
-// Map upstream brief ids to the UpstreamContext slot names.
-const UPSTREAM_SLOT: Record<string, keyof UpstreamContext> = {
+// Map upstream brief ids to the UpstreamBriefs slot names.
+const UPSTREAM_SLOT: Record<string, keyof UpstreamBriefs> = {
   'lead-intake': 'intake',
   'discovery': 'discovery',
   'pitch': 'pitch',
@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       reflections,
       leadState,
       upstreamBriefs,
+      upstreamText,
     } = await req.json();
 
     if (!briefType || !rawInput) {
@@ -70,12 +71,12 @@ export async function POST(req: Request) {
       : 'Nurture Needed';
 
     // Assemble upstream context for the model (JSON sidecars passed from client).
-    const upstreamContext: UpstreamContext = {};
+    const upstreamBriefSlots: UpstreamBriefs = {};
     if (Array.isArray(upstreamBriefs)) {
       for (const item of upstreamBriefs as Array<{ briefType?: string; brief?: BriefSchema }>) {
         const slot = item.briefType ? UPSTREAM_SLOT[item.briefType] : undefined;
         if (slot && item.brief) {
-          upstreamContext[slot] = item.brief;
+          upstreamBriefSlots[slot] = item.brief;
         }
       }
     }
@@ -101,7 +102,10 @@ Services: ${brand.services}
 SCT Framing: ${brand.sctFraming}
 Tone Instruction: ${brand.briefToneInstruction}${operatorContext}`;
 
-    const briefData = await generateBrief(systemPrompt, combinedInput, upstreamContext);
+    const briefData = await generateBrief(systemPrompt, combinedInput, {
+      upstreamBriefs: upstreamBriefSlots,
+      upstreamText: typeof upstreamText === 'string' ? upstreamText : undefined,
+    });
 
     // Ensure leadState echoes what the user selected, even if the model
     // didn't populate it reliably.

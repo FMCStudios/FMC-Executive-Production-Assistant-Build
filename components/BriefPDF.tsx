@@ -1,8 +1,10 @@
 import path from 'path';
 import React from 'react';
 import { Document, Page, View, Text, Image, Font, StyleSheet } from '@react-pdf/renderer';
+import type { Style } from '@react-pdf/types';
 import type { BriefSchema, SCTMode, LeadState, ContentSection, SourceAttribution } from '@/types/brief-schema';
 import { COLD_LEAD_STATES } from '@/types/brief-schema';
+import { linkifyPDF } from '@/components/Linkify';
 
 // ── Font registration (filesystem paths for server-side rendering) ──
 
@@ -408,7 +410,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
             }}>
               {isOC ? 'TL;DR' : 'STRATEGIC NOTE'}
             </Text>
-            <Text style={bodyText.base}>{data.strategicNote}</Text>
+            <Text style={bodyText.base}>{linkifyPDF(data.strategicNote, bodyText.base, t.accent)}</Text>
           </View>
         )}
 
@@ -437,7 +439,9 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
                   }}>
                     {tx(kv.label, t.titleTransform)}
                   </Text>
-                  <Text style={{ fontSize: 11, fontWeight: 500, color: t.text }}>{kv.value}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: 500, color: t.text }}>
+                    {linkifyPDF(kv.value, { fontSize: 11, fontWeight: 500, color: t.text }, t.accent)}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -457,7 +461,9 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
               paddingHorizontal: 16,
             }}>
               {section.body && section.body.split('\n').filter(l => l.trim()).map((line, li) => (
-                <Text key={li} style={{ ...bodyText.base, marginBottom: 2 }}>{line}</Text>
+                <Text key={li} style={{ ...bodyText.base, marginBottom: 2 }}>
+                  {linkifyPDF(line, bodyText.base, t.accent)}
+                </Text>
               ))}
 
               {section.items && section.items.length > 0 && (
@@ -465,7 +471,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
                   {section.items.map((item, ii) => (
                     <View key={ii} style={{ flexDirection: 'row', gap: 5, paddingVertical: 1.5 }}>
                       <Text style={{ color: t.secondary, fontSize: 11, marginTop: 1 }}>{'\u00B7'}</Text>
-                      <Text style={bodyText.base}>{item}</Text>
+                      <Text style={bodyText.base}>{linkifyPDF(item, bodyText.base, t.accent)}</Text>
                     </View>
                   ))}
                 </View>
@@ -473,27 +479,30 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
 
               {section.keyValues && section.keyValues.length > 0 && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-                  {section.keyValues.map((kv, ki) => (
-                    <View key={ki} style={{
-                      width: '31%',
-                      backgroundColor: t.bg,
-                      borderRadius: 5,
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                    }}>
-                      <Text style={{
-                        fontFamily: t.displayFont,
-                        fontSize: 7,
-                        fontWeight: 700,
-                        letterSpacing: 1.5,
-                        color: t.accent,
-                        marginBottom: 2,
+                  {section.keyValues.map((kv, ki) => {
+                    const kvStyle = { fontSize: 11, color: t.text } as Style;
+                    return (
+                      <View key={ki} style={{
+                        width: '31%',
+                        backgroundColor: t.bg,
+                        borderRadius: 5,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
                       }}>
-                        {tx(kv.label, t.titleTransform)}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: t.text }}>{kv.value}</Text>
-                    </View>
-                  ))}
+                        <Text style={{
+                          fontFamily: t.displayFont,
+                          fontSize: 7,
+                          fontWeight: 700,
+                          letterSpacing: 1.5,
+                          color: t.accent,
+                          marginBottom: 2,
+                        }}>
+                          {tx(kv.label, t.titleTransform)}
+                        </Text>
+                        <Text style={kvStyle}>{linkifyPDF(kv.value, kvStyle, t.accent)}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
@@ -528,7 +537,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
               paddingVertical: 12,
               paddingHorizontal: 16,
             }}>
-              <Text style={bodyText.base}>{data.reEngagementTrigger}</Text>
+              <Text style={bodyText.base}>{linkifyPDF(data.reEngagementTrigger, bodyText.base, t.accent)}</Text>
             </View>
           </View>
         )}
@@ -560,9 +569,10 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
                   }}>
                     {tx(block.label, t.titleTransform)}
                   </Text>
-                  {block.content.split('\n').filter(l => l.trim()).map((line, li) => (
-                    <Text key={li} style={{ fontSize: 10, color: t.text, lineHeight: t.bodyLineHeight, marginBottom: 1 }}>{line}</Text>
-                  ))}
+                  {block.content.split('\n').filter(l => l.trim()).map((line, li) => {
+                    const ls: Style = { fontSize: 10, color: t.text, lineHeight: t.bodyLineHeight, marginBottom: 1 };
+                    return <Text key={li} style={ls}>{linkifyPDF(line, ls, t.accent)}</Text>;
+                  })}
                 </View>
               ))}
             </View>
@@ -596,9 +606,10 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
                   }}>
                     {tx(block.label, t.titleTransform)}
                   </Text>
-                  {block.content.split('\n').filter(l => l.trim()).map((line, li) => (
-                    <Text key={li} style={{ fontSize: 10, color: t.text, lineHeight: t.bodyLineHeight, marginBottom: 1 }}>{line}</Text>
-                  ))}
+                  {block.content.split('\n').filter(l => l.trim()).map((line, li) => {
+                    const ls: Style = { fontSize: 10, color: t.text, lineHeight: t.bodyLineHeight, marginBottom: 1 };
+                    return <Text key={li} style={ls}>{linkifyPDF(line, ls, t.accent)}</Text>;
+                  })}
                 </View>
               ))}
             </View>
@@ -629,18 +640,21 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
               {tx(t.labelGaps, t.titleTransform)}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              {data.gaps.map((gap, gi) => (
-                <View key={gi} style={{
-                  width: '50%',
-                  flexDirection: 'row',
-                  gap: 5,
-                  paddingRight: 12,
-                  paddingVertical: 2,
-                }}>
-                  <Text style={{ color: severityColor(gap.severity, t), fontSize: 7, marginTop: 3 }}>{'\u25CF'}</Text>
-                  <Text style={{ fontSize: 11, color: t.text, lineHeight: t.bodyLineHeight }}>{gap.text}</Text>
-                </View>
-              ))}
+              {data.gaps.map((gap, gi) => {
+                const gs: Style = { fontSize: 11, color: t.text, lineHeight: t.bodyLineHeight };
+                return (
+                  <View key={gi} style={{
+                    width: '50%',
+                    flexDirection: 'row',
+                    gap: 5,
+                    paddingRight: 12,
+                    paddingVertical: 2,
+                  }}>
+                    <Text style={{ color: severityColor(gap.severity, t), fontSize: 7, marginTop: 3 }}>{'\u25CF'}</Text>
+                    <Text style={gs}>{linkifyPDF(gap.text, gs, t.accent)}</Text>
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -665,10 +679,12 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
                   {tx(owner, t.titleTransform)}
                 </Text>
                 <View style={{ borderLeftWidth: 2, borderLeftColor: t.secondary, paddingLeft: 12 }}>
-                  {nextStepGroups.groups.get(owner)!.map((action, ai) => (
+                  {nextStepGroups.groups.get(owner)!.map((action, ai) => {
+                    const as: Style = { fontSize: 11, color: t.text, lineHeight: t.bodyLineHeight, flex: 1 };
+                    return (
                     <View key={ai} style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingVertical: 2 }}>
                       <Text style={{ color: t.accent, opacity: 0.4, fontSize: 10 }}>{'\u2192'}</Text>
-                      <Text style={{ fontSize: 11, color: t.text, lineHeight: t.bodyLineHeight, flex: 1 }}>{action.action}</Text>
+                      <Text style={as}>{linkifyPDF(action.action, as, t.accent)}</Text>
                       {action.deadline && (
                         <View style={{
                           backgroundColor: t.cardBg,
@@ -686,7 +702,8 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
                         </View>
                       )}
                     </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             ))}

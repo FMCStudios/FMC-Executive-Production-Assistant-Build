@@ -21,6 +21,8 @@ function buildBaseFilename(data: BriefSchema, briefTypeName: string): string {
   return `FMC-Studios_${briefType}_${company}_${date}_v${version}`;
 }
 
+type DriveStatus = 'uploaded' | 'failed' | 'disabled';
+
 export async function POST(req: Request) {
   try {
     const { data, brandId, brandName, briefTypeName, sctMode } = await req.json();
@@ -33,10 +35,12 @@ export async function POST(req: Request) {
     const baseFilename = buildBaseFilename(brief, briefTypeName);
     const filename = `${baseFilename}.pdf`;
 
-    // Fire-and-forget Drive upload — failure must not block the download.
+    // Fire-and-forget Drive upload — failure must never block the PDF.
+    let driveStatus: DriveStatus = 'disabled';
     let driveUrl: string | null = null;
     let driveJsonUrl: string | null = null;
     let driveError: string | null = null;
+
     try {
       const companyName = brief.companyName || brief.projectName || 'Unknown Client';
       const driveRes = await uploadBriefToDrive({
@@ -46,22 +50,34 @@ export async function POST(req: Request) {
         companyName,
       });
       if (driveRes.success) {
+        driveStatus = 'uploaded';
         driveUrl = driveRes.pdfUrl || null;
         driveJsonUrl = driveRes.jsonUrl || null;
       } else {
-        driveError = driveRes.error || 'unknown';
+        // Distinguish "not configured" from actual errors so the client
+        // can tell why the upload didn't land.
+        const err = driveRes.error || 'unknown';
+        const normalized = err.toLowerCase();
+        if (normalized.includes('not configured')) {
+          driveStatus = 'disabled';
+        } else {
+          driveStatus = 'failed';
+          driveError = err;
+        }
       }
     } catch (driveErr) {
       const err = driveErr instanceof Error ? driveErr : new Error(String(driveErr));
       console.error('[generate-pdf] Drive upload threw (non-fatal):', err.message, err.stack);
+      driveStatus = 'failed';
       driveError = err.message || 'threw';
     }
 
     const headers = new Headers({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
+      'X-Drive-Status': driveStatus,
     });
-    if (driveUrl) headers.set('X-Drive-Pdf-Url', driveUrl);
+    if (driveUrl) headers.set('X-Drive-Url', driveUrl);
     if (driveJsonUrl) headers.set('X-Drive-Json-Url', driveJsonUrl);
     if (driveError) headers.set('X-Drive-Error', driveError);
 

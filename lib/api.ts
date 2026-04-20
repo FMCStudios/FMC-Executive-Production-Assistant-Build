@@ -79,13 +79,18 @@ function formatGlossaryForPrompt(entries: GlossaryEntry[]): string {
 
 // ── Upstream context ──────────────────────────────────────────
 
-export type UpstreamContext = {
+export type UpstreamBriefs = {
   intake?: BriefSchema;
   discovery?: BriefSchema;
   pitch?: BriefSchema;
   production?: BriefSchema;
   postProduction?: BriefSchema;
   wrapRetention?: BriefSchema;
+};
+
+export type UpstreamContext = {
+  upstreamBriefs?: UpstreamBriefs;
+  upstreamText?: string;
 };
 
 function summarizeUpstream(label: string, brief: BriefSchema): string {
@@ -108,7 +113,7 @@ function summarizeUpstream(label: string, brief: BriefSchema): string {
   return lines.join('\n');
 }
 
-function formatUpstreamContext(upstream: UpstreamContext | undefined): string {
+function formatUpstreamBriefs(upstream: UpstreamBriefs | undefined): string {
   if (!upstream) return '';
   const parts: string[] = [];
   if (upstream.intake) parts.push(summarizeUpstream('INTAKE (inherited)', upstream.intake));
@@ -120,6 +125,14 @@ function formatUpstreamContext(upstream: UpstreamContext | undefined): string {
   if (parts.length === 0) return '';
   return `INHERITED CONTEXT (from upstream briefs — treat as source material, tag fields drawn from here as "inherited"):\n\n${parts.join('\n\n')}\n\n---\n\n`;
 }
+
+function formatUpstreamText(text: string | undefined): string {
+  if (!text || !text.trim()) return '';
+  return `UPSTREAM CONTEXT (unstructured, attached from prior document — treat extracted facts as source="inherited"):\n${text.trim()}\n\n---\n\n`;
+}
+
+const UNSTRUCTURED_HANDLING = `UNSTRUCTURED UPSTREAM CONTEXT HANDLING:
+The user has attached an unstructured text document as upstream context. Treat all facts extracted from that UPSTREAM CONTEXT block as source="inherited". Do NOT infer leadState, gap severity ratings, or structured fields from it — those come from the current brief's inputs only. Use the upstream text for project context, client history, and prior decisions, but any strategic read (leadState, severity, tier recommendations) must come from the current reflections + transcript only.`;
 
 // ── JSON wrapper ──────────────────────────────────────────────
 
@@ -183,14 +196,16 @@ Respond with ONLY the JSON object. No other text.`;
 export async function generateBrief(
   systemPrompt: string,
   userInput: string,
-  upstreamContext?: UpstreamContext
+  context?: UpstreamContext
 ): Promise<BriefSchema> {
   const glossary = await loadGlossary();
   const glossaryBlock = formatGlossaryForPrompt(glossary);
-  const upstreamBlock = formatUpstreamContext(upstreamContext);
+  const upstreamBriefsBlock = formatUpstreamBriefs(context?.upstreamBriefs);
+  const upstreamTextBlock = formatUpstreamText(context?.upstreamText);
+  const unstructuredNote = context?.upstreamText ? `\n\n${UNSTRUCTURED_HANDLING}` : '';
 
-  const fullSystem = `${systemPrompt}${glossaryBlock}${JSON_WRAPPER}`;
-  const fullUser = `${upstreamBlock}${userInput}`;
+  const fullSystem = `${systemPrompt}${glossaryBlock}${unstructuredNote}${JSON_WRAPPER}`;
+  const fullUser = `${upstreamTextBlock}${upstreamBriefsBlock}${userInput}`;
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import type { BriefSchema, SCTMode, LeadState, SourceAttribution } from '@/types/brief-schema';
 import { COLD_LEAD_STATES } from '@/types/brief-schema';
+import { Linkify } from '@/components/Linkify';
 
 type Props = {
   data: BriefSchema;
@@ -61,7 +62,7 @@ export default function BriefOutput({
   const [copied, setCopied] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [pdfError, setPdfError] = useState(false);
-  const [driveLinks, setDriveLinks] = useState<{ pdf?: string; json?: string } | null>(null);
+  const [driveLinks, setDriveLinks] = useState<{ pdf?: string; json?: string; status?: string; error?: string } | null>(null);
 
   void brandId;
   void _brandTagline;
@@ -150,9 +151,13 @@ export default function BriefOutput({
       });
       if (!res.ok) throw new Error('PDF generation failed');
 
-      const pdfUrl = res.headers.get('X-Drive-Pdf-Url') || undefined;
+      const pdfUrl = res.headers.get('X-Drive-Url') || undefined;
       const jsonUrl = res.headers.get('X-Drive-Json-Url') || undefined;
-      if (pdfUrl || jsonUrl) setDriveLinks({ pdf: pdfUrl, json: jsonUrl });
+      const driveStatus = res.headers.get('X-Drive-Status') || undefined;
+      const driveErr = res.headers.get('X-Drive-Error') || undefined;
+      if (pdfUrl || jsonUrl || driveStatus || driveErr) {
+        setDriveLinks({ pdf: pdfUrl, json: jsonUrl, status: driveStatus, error: driveErr });
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -245,8 +250,8 @@ export default function BriefOutput({
           <p className="text-sm text-white/50 mb-5">{data.projectDescription}</p>
         )}
 
-        {/* Drive links banner */}
-        {driveLinks && (driveLinks.pdf || driveLinks.json) && (
+        {/* Drive status banner */}
+        {driveLinks && driveLinks.status === 'uploaded' && (driveLinks.pdf || driveLinks.json) && (
           <div
             className="mb-5 rounded-lg px-3 py-2 flex flex-wrap items-center gap-3 text-[11px]"
             style={{ background: 'rgba(73,121,123,0.08)', border: '1px solid rgba(73,121,123,0.25)' }}
@@ -260,6 +265,15 @@ export default function BriefOutput({
             )}
           </div>
         )}
+        {driveLinks && driveLinks.status === 'failed' && (
+          <div
+            className="mb-5 rounded-lg px-3 py-2 flex flex-wrap items-center gap-3 text-[11px]"
+            style={{ background: 'rgba(224,52,19,0.08)', border: '1px solid rgba(224,52,19,0.25)' }}
+          >
+            <span className="text-fmc-firestarter font-semibold tracking-[0.15em] uppercase">Drive upload failed</span>
+            <span className="text-fmc-firestarter/80 break-all">{driveLinks.error || 'unknown error'}</span>
+          </div>
+        )}
 
         {/* Strategic note — promoted to top */}
         {data.strategicNote && (
@@ -271,7 +285,9 @@ export default function BriefOutput({
             }}
           >
             <h3 className="label-upper text-fmc-firestarter mb-2">Strategic Note</h3>
-            <p className="text-sm text-white/85 leading-relaxed">{data.strategicNote}</p>
+            <p className="text-sm text-white/85 leading-relaxed whitespace-pre-line">
+              <Linkify text={data.strategicNote} />
+            </p>
           </div>
         )}
 
@@ -286,7 +302,9 @@ export default function BriefOutput({
               {data.context.map((kv, i) => (
                 <div key={i} className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5">
                   <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-firestarter/80 block mb-1">{kv.label}</span>
-                  <span className="text-sm font-medium text-fmc-offwhite">{kv.value}</span>
+                  <span className="text-sm font-medium text-fmc-offwhite break-words">
+                    <Linkify text={kv.value} />
+                  </span>
                 </div>
               ))}
             </div>
@@ -308,15 +326,17 @@ export default function BriefOutput({
               </h3>
 
               {section.body && (
-                <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{section.body}</p>
+                <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
+                  <Linkify text={section.body} />
+                </p>
               )}
 
               {section.items && section.items.length > 0 && (
                 <ul className="space-y-1.5 my-1">
                   {section.items.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-white/80">
+                    <li key={i} className="flex items-start gap-2 text-sm text-white/80 break-words">
                       <span className="text-fmc-copper mt-0.5 flex-shrink-0">&middot;</span>
-                      <span>{item}</span>
+                      <span><Linkify text={item} /></span>
                     </li>
                   ))}
                 </ul>
@@ -327,7 +347,9 @@ export default function BriefOutput({
                   {section.keyValues.map((kv, i) => (
                     <div key={i} className="bg-white/[0.03] rounded-lg px-3 py-2">
                       <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 block mb-0.5">{kv.label}</span>
-                      <span className="text-sm text-fmc-offwhite">{kv.value}</span>
+                      <span className="text-sm text-fmc-offwhite break-words">
+                        <Linkify text={kv.value} />
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -354,7 +376,9 @@ export default function BriefOutput({
           <div className="mt-6">
             <div className="border-t border-white/[0.06] pt-5">
               <h3 className="label-upper text-fmc-copper mb-3">Re-Engagement Conditions</h3>
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{data.reEngagementTrigger}</p>
+              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
+                <Linkify text={data.reEngagementTrigger} />
+              </p>
             </div>
           </div>
         )}
@@ -371,7 +395,9 @@ export default function BriefOutput({
                 {data.sctPrimary.blocks.map((block, bi) => (
                   <div key={bi} className="bg-white/[0.03] rounded-xl p-4">
                     <span className="label-upper text-white/50 block mb-2">{block.label}</span>
-                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{block.content}</p>
+                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
+                      <Linkify text={block.content} />
+                    </p>
                   </div>
                 ))}
               </div>
@@ -390,7 +416,9 @@ export default function BriefOutput({
                 {data.sctSecondary.blocks.map((block, bi) => (
                   <div key={bi} className="bg-white/[0.03] rounded-xl p-4">
                     <span className="label-upper text-white/50 block mb-2">{block.label}</span>
-                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{block.content}</p>
+                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line break-words">
+                      <Linkify text={block.content} />
+                    </p>
                   </div>
                 ))}
               </div>
@@ -413,7 +441,7 @@ export default function BriefOutput({
                 {data.gaps.map((gap, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-fmc-offwhite leading-relaxed">
                     <span className="text-fmc-firestarter flex-shrink-0 mt-px">{'\u26A0'}</span>
-                    <span>{gap.text}</span>
+                    <span className="break-words"><Linkify text={gap.text} /></span>
                     <SourceBadge source={gap.source} />
                     {gap.severity && (
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-auto whitespace-nowrap ${
@@ -461,7 +489,7 @@ export default function BriefOutput({
                       {nextStepGroups.groups.get(owner)!.map((step, ai) => (
                         <div key={ai} className="flex items-baseline gap-2 text-sm text-white/70 leading-relaxed">
                           <span className="text-fmc-firestarter/40 flex-shrink-0">{'\u2192'}</span>
-                          <span className="flex-1">{step.action}</span>
+                          <span className="flex-1 break-words"><Linkify text={step.action} /></span>
                           <SourceBadge source={step.source} />
                           {step.deadline && (
                             <span className="inline-flex bg-white/[0.06] rounded-full px-2 py-0.5 text-xs text-fmc-teal whitespace-nowrap">

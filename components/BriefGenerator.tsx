@@ -27,11 +27,20 @@ const UPSTREAM_TYPES: Record<string, string[]> = {
   'archive': ['production', 'post-production', 'wrap-retention'],
 };
 
-type UpstreamPick = {
+type UpstreamJsonPick = {
+  kind: 'json';
   briefType: string;
   brief: BriefSchema;
   sourceLabel: string;
 };
+
+type UpstreamTextPick = {
+  kind: 'text';
+  filename: string;
+  text: string;
+};
+
+type UpstreamPick = UpstreamJsonPick | UpstreamTextPick;
 
 type DriveFile = {
   id: string;
@@ -62,10 +71,12 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
   const [reEngagementTrigger, setReEngagementTrigger] = useState('');
   const [reflections, setReflections] = useState('');
   const [upstreamPicks, setUpstreamPicks] = useState<UpstreamPick[]>([]);
-  const [pickerMode, setPickerMode] = useState<'drive' | 'upload'>('drive');
+  // Upload is now primary; Drive picker is fallback for already-synced briefs.
+  const [pickerMode, setPickerMode] = useState<'upload' | 'drive'>('upload');
   const [driveCompany, setDriveCompany] = useState('');
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [driveLoading, setDriveLoading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const reflectionsRequired = !isIntake;
   const reflectionsMissing = reflectionsRequired && !reflections.trim();
@@ -102,6 +113,7 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
       const brief = data.brief as BriefSchema;
       const guessedType = guessBriefTypeFromFilename(file.name);
       setUpstreamPicks(list => [...list, {
+        kind: 'json',
         briefType: guessedType,
         brief,
         sourceLabel: `Drive \u00B7 ${file.name}`,
@@ -111,25 +123,44 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
     }
   };
 
-  const pickFromUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result)) as BriefSchema;
+  const pickFromUpload = async (file: File) => {
+    setUploadError(null);
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.pdf') || file.type === 'application/pdf') {
+      setUploadError('PDF parsing coming soon. For now, copy the brief content into a .md or .txt file.');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const isJson = lower.endsWith('.json') || file.type === 'application/json';
+
+      if (isJson) {
+        const parsed = JSON.parse(text);
         if (!parsed || typeof parsed !== 'object' || !('projectName' in parsed) || !('context' in parsed)) {
+          setUploadError('JSON does not appear to be an EPA brief sidecar.');
           return;
         }
         const guessedType = guessBriefTypeFromFilename(file.name);
         setUpstreamPicks(list => [...list, {
+          kind: 'json',
           briefType: guessedType,
-          brief: parsed,
+          brief: parsed as BriefSchema,
           sourceLabel: `Upload \u00B7 ${file.name}`,
         }]);
-      } catch {
-        /* bad JSON */
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      // .md / .txt / unknown text → raw upstream text
+      setUpstreamPicks(list => [...list, {
+        kind: 'text',
+        filename: file.name,
+        text,
+      }]);
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      setUploadError(`Couldn't read file: ${err.message}`);
+    }
   };
 
   const removeUpstream = (i: number) => {
@@ -183,10 +214,16 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
           reflections: reflectionsRequired ? reflections : undefined,
           leadState,
           reEngagementTrigger: isColdLead ? reEngagementTrigger : undefined,
-          upstreamBriefs: upstreamPicks.map(p => ({
-            briefType: p.briefType,
-            brief: p.brief,
-          })),
+          upstreamBriefs: upstreamPicks
+            .filter((p): p is UpstreamJsonPick => p.kind === 'json')
+            .map(p => ({
+              briefType: p.briefType,
+              brief: p.brief,
+            })),
+          upstreamText: upstreamPicks
+            .filter((p): p is UpstreamTextPick => p.kind === 'text')
+            .map(p => `### ${p.filename}\n${p.text}`)
+            .join('\n\n---\n\n') || undefined,
         }),
       });
 
@@ -308,7 +345,7 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
                   border: '1px solid rgba(255,255,255,0.08)',
                 }}
               >
-                {(['drive', 'upload'] as const).map(m => {
+                {(['upload', 'drive'] as const).map(m => {
                   const active = pickerMode === m;
                   return (
                     <button
@@ -322,14 +359,41 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
                         transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
                       }}
                     >
-                      {m === 'drive' ? 'Pick from Drive' : 'Upload file'}
+                      {m === 'upload' ? 'Upload file' : 'Pick from Drive'}
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {pickerMode === 'drive' ? (
+            {pickerMode === 'upload' ? (
+              <div>
+                <label
+                  className="block w-full rounded-lg cursor-pointer px-3 py-6 text-center text-xs text-white/50 active:scale-[0.97]"
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px dashed rgba(255,255,255,0.12)',
+                    transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept=".json,application/json,.md,text/markdown,.txt,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) pickFromUpload(file);
+                      e.target.value = '';
+                    }}
+                    disabled={loading}
+                  />
+                  Drop a .json / .md / .txt file here, or click to browse.
+                </label>
+                {uploadError && (
+                  <p className="text-[11px] text-fmc-firestarter/80 mt-2">{uploadError}</p>
+                )}
+              </div>
+            ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <input
@@ -389,30 +453,6 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
                   </p>
                 )}
               </div>
-            ) : (
-              <div>
-                <label
-                  className="block w-full rounded-lg cursor-pointer px-3 py-6 text-center text-xs text-white/50 active:scale-[0.97]"
-                  style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px dashed rgba(255,255,255,0.12)',
-                    transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  }}
-                >
-                  <input
-                    type="file"
-                    accept="application/json,.json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) pickFromUpload(file);
-                      e.target.value = '';
-                    }}
-                    disabled={loading}
-                  />
-                  Drop a .json sidecar here, or click to browse.
-                </label>
-              </div>
             )}
 
             {/* Picked upstream list */}
@@ -428,17 +468,19 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
                     }}
                   >
                     <div className="flex items-baseline gap-2 min-w-0">
-                      <span className="text-[10px] uppercase tracking-[0.15em] text-fmc-teal">
-                        {p.briefType}
+                      <span className="text-[10px] uppercase tracking-[0.15em] text-fmc-teal flex-shrink-0">
+                        {p.kind === 'json' ? `Inherited \u00B7 ${p.briefType}` : 'Attached text'}
                       </span>
                       <span className="text-xs text-fmc-offwhite truncate">
-                        {p.brief.projectName || p.sourceLabel}
+                        {p.kind === 'json'
+                          ? (p.brief.projectName || p.sourceLabel)
+                          : `${p.filename} (${p.text.length.toLocaleString()} chars)`}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => removeUpstream(i)}
-                      className="text-white/40 hover:text-fmc-firestarter text-sm leading-none active:scale-[0.97]"
+                      className="text-white/40 hover:text-fmc-firestarter text-sm leading-none active:scale-[0.97] flex-shrink-0"
                       style={{ transition: 'color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                       aria-label="Remove upstream"
                     >
