@@ -3,7 +3,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 export const wrapRetention: BriefTypeConfig = {
   id: 'wrap-retention',
   name: 'Wrap & Retention',
-  phase: 5,
+  phase: 6,
   emoji: '\uD83E\uDD1D',
   tagline: "project's done — now what?",
   description: 'Client survey + internal debrief + retention triggers — protect the relationship, capture the data.',

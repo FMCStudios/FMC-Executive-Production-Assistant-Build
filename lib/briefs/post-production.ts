@@ -3,7 +3,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 export const postProduction: BriefTypeConfig = {
   id: 'post-production',
   name: 'Post-Production',
-  phase: 4,
+  phase: 5,
   emoji: '\u2702\uFE0F',
   tagline: 'assets exist — send to editor',
   description: 'The most critical brief in the system — editor-ready instructions with full technical, creative, and delivery specs.',

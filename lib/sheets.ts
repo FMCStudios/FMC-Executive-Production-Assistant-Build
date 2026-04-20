@@ -91,30 +91,32 @@ export async function writeBriefToSheet(input: BriefSheetData): Promise<{ succes
   const timeline = timelineEntry?.value || '';
 
   const row = [
-    timestamp,                      // A: Date
-    input.brandName,                // B: Brand
-    input.briefTypeName,            // C: Brief Type
-    input.phase.toString(),         // D: Phase
-    input.operatorId,               // E: Operator
-    data.projectName,               // F: Project
-    clientName,                     // G: Client
-    'Generated',                    // H: Status
-    criticalGaps.toString(),        // I: Critical Gaps
-    totalGaps.toString(),           // J: Total Gaps
-    owners,                         // K: Owner(s)
-    budget,                         // L: Budget
-    timeline,                       // M: Timeline
-    gapsSummary,                    // N: Gaps Detail
-    nextStepsSummary,               // O: Next Steps Detail
-    data.projectDescription || '',  // P: Description
-    briefId,                        // Q: Brief ID
-    input.operatorEmail || '',      // R: Operator Email
-    input.crewOnBrief || '',        // S: Crew On Brief
+    timestamp,                         // A: Date
+    input.brandName,                   // B: Brand
+    input.briefTypeName,               // C: Brief Type
+    input.phase.toString(),            // D: Phase
+    input.operatorId,                  // E: Operator
+    data.projectName,                  // F: Project
+    clientName,                        // G: Client
+    'Generated',                       // H: Status
+    criticalGaps.toString(),           // I: Critical Gaps
+    totalGaps.toString(),              // J: Total Gaps
+    owners,                            // K: Owner(s)
+    budget,                            // L: Budget
+    timeline,                          // M: Timeline
+    gapsSummary,                       // N: Gaps Detail
+    nextStepsSummary,                  // O: Next Steps Detail
+    data.projectDescription || '',     // P: Description
+    briefId,                           // Q: Brief ID
+    input.operatorEmail || '',         // R: Operator Email
+    input.crewOnBrief || '',           // S: Crew On Brief
+    data.leadState || '',              // T: Lead State
+    data.companyName || '',            // U: Company
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'Pipeline!A:S',
+    range: 'Pipeline!A:U',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });

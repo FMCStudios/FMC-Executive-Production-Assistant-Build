@@ -122,6 +122,11 @@ Every interactive element must have a visible hover response (glow, border chang
 - Must feel like macOS/iOS — if an Apple designer would wince, revise
 - No decorative elements that don't earn their place
 
+## One-time setup
+
+Run `npx tsx scripts/seed-glossary.ts` once after the first deploy to populate the
+Glossary sheet tab. Brett/Corey can edit the sheet directly going forward.
+
 ## Commit Protocol
 
 Every change gets its own commit with a descriptive message.

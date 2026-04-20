@@ -3,7 +3,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 export const production: BriefTypeConfig = {
   id: 'production',
   name: 'Production',
-  phase: 3,
+  phase: 4,
   emoji: '\uD83C\uDFAC',
   tagline: "we're making the thing",
   description: 'Generate crew-ready marching orders — modular sub-briefs for call sheet, gear, crew, creative, and strategy.',

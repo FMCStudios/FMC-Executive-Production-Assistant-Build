@@ -1,7 +1,8 @@
 import path from 'path';
 import React from 'react';
 import { Document, Page, View, Text, Image, Font, StyleSheet } from '@react-pdf/renderer';
-import type { BriefSchema, SCTMode } from '@/types/brief-schema';
+import type { BriefSchema, SCTMode, LeadState, ContentSection, SourceAttribution } from '@/types/brief-schema';
+import { COLD_LEAD_STATES } from '@/types/brief-schema';
 
 // ── Font registration (filesystem paths for server-side rendering) ──
 
@@ -41,10 +42,7 @@ Font.register({
   fontWeight: 400,
 });
 
-// Disable word hyphenation
 Font.registerHyphenationCallback((word) => [word]);
-
-// ── Brand themes ────────────────────────────────────────────────
 
 type BrandTheme = {
   bg: string;
@@ -53,6 +51,7 @@ type BrandTheme = {
   accent: string;
   secondary: string;
   tertiary?: string;
+  teal: string;
   cardBg: string;
   cardBorder: string;
   gapsBg: string;
@@ -80,6 +79,7 @@ const themes: Record<string, BrandTheme> = {
     textMuted: '#888880',
     accent: '#E03413',
     secondary: '#B45F34',
+    teal: '#49797B',
     cardBg: '#1A1A1A',
     cardBorder: '#2A2A28',
     gapsBg: '#1F1210',
@@ -93,7 +93,7 @@ const themes: Record<string, BrandTheme> = {
     footerTagline: 'Together We Win',
     titleTransform: 'uppercase',
     titleSpacing: 0.5,
-    titleSize: 28,
+    titleSize: 26,
     bodyLineHeight: 1.65,
     labelProspect: 'Prospect',
     labelGaps: 'Gaps \u2014 Critical Unknowns',
@@ -104,6 +104,7 @@ const themes: Record<string, BrandTheme> = {
     textMuted: '#4A4A4A',
     accent: '#D42B2B',
     secondary: '#C41E3A',
+    teal: '#3A6A6C',
     cardBg: '#EDE8E0',
     cardBorder: '#D8D3CB',
     gapsBg: '#F5ECEC',
@@ -117,7 +118,7 @@ const themes: Record<string, BrandTheme> = {
     footerTagline: 'Taking You Beyond the Stage...',
     titleTransform: 'uppercase',
     titleSpacing: 0.5,
-    titleSize: 28,
+    titleSize: 26,
     bodyLineHeight: 1.65,
     labelProspect: 'Prospect',
     labelGaps: 'Gaps \u2014 Critical Unknowns',
@@ -129,6 +130,7 @@ const themes: Record<string, BrandTheme> = {
     accent: '#C4842D',
     secondary: '#8B6914',
     tertiary: '#7A8B6F',
+    teal: '#7A8B6F',
     cardBg: '#F2EDE6',
     cardBorder: '#E0DBD4',
     gapsBg: '#F7F1E8',
@@ -143,7 +145,7 @@ const themes: Record<string, BrandTheme> = {
     footerTaglineFont: 'Shelten',
     titleTransform: 'none',
     titleSpacing: -0.2,
-    titleSize: 28,
+    titleSize: 26,
     bodyLineHeight: 1.75,
     labelProspect: 'The Couple',
     labelGaps: 'Still Needed',
@@ -153,8 +155,6 @@ const themes: Record<string, BrandTheme> = {
 function getTheme(brandId: string): BrandTheme {
   return themes[brandId] || themes.fmc;
 }
-
-// ── Helpers ──────────────────────────────────────────────────────
 
 function tx(text: string, transform: 'uppercase' | 'none'): string {
   return transform === 'uppercase' ? text.toUpperCase() : text;
@@ -166,10 +166,56 @@ function severityColor(severity: string | undefined, t: BrandTheme): string {
   return t.tertiary || t.textMuted;
 }
 
-// ── Reusable sub-components ──────────────────────────────────────
+function sourceLabel(src?: SourceAttribution): string | null {
+  if (!src) return null;
+  return src === 'transcript' ? 'TRANSCRIPT' : src === 'reflection' ? 'REFLECTION' : 'INHERITED';
+}
 
-function SectionLabel({ label, theme: t }: { label: string; theme: BrandTheme }) {
+function sourceColor(src: SourceAttribution | undefined, t: BrandTheme): string {
+  if (src === 'transcript') return t.accent;
+  if (src === 'reflection') return t.secondary;
+  if (src === 'inherited') return t.teal;
+  return t.textMuted;
+}
+
+function leadStateColor(state: LeadState, t: BrandTheme): string {
+  if (state === 'Won') return t.teal;
+  if (state === 'In Production' || state === 'Formal Quote Requested' || state === 'Formal Pitch Requested') return t.accent;
+  if (state === 'Nurture Needed' || state === 'On Hold') return t.secondary;
+  return t.textMuted;
+}
+
+function formatHeader(data: BriefSchema, briefTypeName: string): string {
+  const name = [data.clientFirstName, data.clientLastName].filter(Boolean).join(' ').trim();
+  const parts = [name, data.companyName, briefTypeName].filter(Boolean);
+  if (parts.length >= 2) return parts.join(' \u00B7 ');
+  return data.projectName || briefTypeName;
+}
+
+function formatVersionHistory(data: BriefSchema): string {
+  if (!data.versionHistory || data.versionHistory.length === 0) return '';
+  return data.versionHistory
+    .map(v => {
+      const d = new Date(v.timestamp);
+      const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const label = v.regeneratedReason ? `v${v.version} \u00B7 regenerated ${date} ${time}` : `v${v.version} \u00B7 generated ${date}`;
+      return label;
+    })
+    .join('  \u00B7  ');
+}
+
+function SectionLabel({
+  label,
+  theme: t,
+  source,
+}: {
+  label: string;
+  theme: BrandTheme;
+  source?: SourceAttribution;
+}) {
   const tracking = t.titleTransform === 'none' ? 1 : 2.5;
+  const srcLabel = sourceLabel(source);
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
       <Text style={{
@@ -181,12 +227,29 @@ function SectionLabel({ label, theme: t }: { label: string; theme: BrandTheme })
       }}>
         {tx(label, t.titleTransform)}
       </Text>
+      {srcLabel && (
+        <View style={{
+          paddingVertical: 1.5,
+          paddingHorizontal: 6,
+          borderRadius: 10,
+          backgroundColor: t.cardBg,
+          borderWidth: 0.75,
+          borderColor: sourceColor(source, t),
+        }}>
+          <Text style={{
+            fontSize: 6.5,
+            fontWeight: 700,
+            letterSpacing: 1.5,
+            color: sourceColor(source, t),
+          }}>
+            {srcLabel}
+          </Text>
+        </View>
+      )}
       <View style={{ flex: 1, height: 0.75, backgroundColor: t.cardBorder }} />
     </View>
   );
 }
-
-// ── Main component ───────────────────────────────────────────────
 
 export type BriefPDFProps = {
   data: BriefSchema;
@@ -216,7 +279,6 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
     },
   });
 
-  // Group next steps by owner
   const nextStepGroups = (() => {
     const groups = new Map<string, typeof data.nextSteps>();
     for (const step of data.nextSteps) {
@@ -229,14 +291,23 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
     return { groups, orderedKeys };
   })();
 
+  const headerLine = formatHeader(data, briefTypeName);
+  const isCold = COLD_LEAD_STATES.includes(data.leadState);
+  const leadPillColor = leadStateColor(data.leadState, t);
+
+  // Filter tier sections (Three Tiers / Tiers) if lead is cold, render
+  // Re-Engagement Conditions instead.
+  const sectionsFiltered: ContentSection[] = isCold
+    ? data.sections.filter(s => !/tiers?|three\s*tiers/i.test(s.header))
+    : data.sections;
+
   return (
     <Document>
-      <Page size="LETTER" style={{ backgroundColor: t.bg, paddingHorizontal: 48, paddingTop: 48, paddingBottom: 40, fontFamily: t.bodyFont }}>
+      <Page size="LETTER" style={{ backgroundColor: t.bg, paddingHorizontal: 48, paddingTop: 44, paddingBottom: 40, fontFamily: t.bodyFont }}>
 
-        {/* ── Header ─────────────────────────────────── */}
-        <View style={{ marginBottom: 24 }}>
-          {/* Logo row */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        {/* Header */}
+        <View style={{ marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {t.logoSrc ? (
                 <>
@@ -251,16 +322,28 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
               )}
             </View>
 
-            {/* Badge pill */}
-            <View style={{
-              paddingVertical: 3,
-              paddingHorizontal: 10,
-              borderRadius: 20,
-              backgroundColor: t.gapsBg,
-              borderWidth: 1,
-              borderColor: t.accent,
-            }}>
-              <Text style={{ fontSize: 8.5, fontWeight: 600, color: t.accent }}>{briefTypeName}</Text>
+            {/* Pills: brief type + lead state */}
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <View style={{
+                paddingVertical: 3,
+                paddingHorizontal: 10,
+                borderRadius: 20,
+                backgroundColor: t.gapsBg,
+                borderWidth: 1,
+                borderColor: t.accent,
+              }}>
+                <Text style={{ fontSize: 8.5, fontWeight: 600, color: t.accent }}>{briefTypeName}</Text>
+              </View>
+              <View style={{
+                paddingVertical: 3,
+                paddingHorizontal: 10,
+                borderRadius: 20,
+                backgroundColor: t.cardBg,
+                borderWidth: 1,
+                borderColor: leadPillColor,
+              }}>
+                <Text style={{ fontSize: 8.5, fontWeight: 600, color: leadPillColor }}>{data.leadState}</Text>
+              </View>
             </View>
           </View>
 
@@ -276,49 +359,67 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
             {tx('Brief', t.titleTransform)}
           </Text>
 
-          {/* Title */}
+          {/* New header convention */}
           <Text style={{
             fontFamily: t.displayFont,
             fontSize: t.titleSize,
             fontWeight: 800,
             letterSpacing: t.titleSpacing,
             color: t.text,
-            marginBottom: 4,
+            marginBottom: 6,
           }}>
-            {isOC ? data.projectName : data.projectName.toUpperCase()}
+            {isOC ? headerLine : headerLine.toUpperCase()}
           </Text>
 
-          {/* Description */}
           {data.projectDescription && (
-            <Text style={{
-              fontSize: 11,
-              color: t.textMuted,
-              // Ovo doesn't have an italic variant registered; Shelten is inherently script
-              marginBottom: 12,
-            }}>
+            <Text style={{ fontSize: 11, color: t.textMuted, marginBottom: 10 }}>
               {data.projectDescription}
             </Text>
           )}
 
-          {/* Meta line */}
-          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
             <Text style={{ fontSize: 8.5, color: t.textMuted }}>{brandName}</Text>
             <Text style={{ fontSize: 8.5, color: t.textMuted }}>{'\u00B7'}</Text>
             <Text style={{ fontSize: 8.5, color: t.textMuted }}>{date}</Text>
           </View>
 
-          {/* Separator */}
           <View style={{ height: 1, backgroundColor: t.accent, opacity: 0.3 }} />
         </View>
 
-        {/* ── Context grid ───────────────────────────── */}
+        {/* Strategic note — promoted to TOP */}
+        {data.strategicNote && (
+          <View style={{
+            marginBottom: 18,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            backgroundColor: t.cardBg,
+            borderLeftWidth: 3,
+            borderLeftColor: t.accent,
+            borderTopRightRadius: 6,
+            borderBottomRightRadius: 6,
+          }} wrap={false}>
+            <Text style={{
+              fontFamily: t.displayFont,
+              fontSize: 7.5,
+              fontWeight: 700,
+              letterSpacing: t.titleTransform === 'none' ? 1 : 2,
+              color: t.accent,
+              marginBottom: 6,
+            }}>
+              {isOC ? 'TL;DR' : 'STRATEGIC NOTE'}
+            </Text>
+            <Text style={bodyText.base}>{data.strategicNote}</Text>
+          </View>
+        )}
+
+        {/* Context grid */}
         {data.context.length > 0 && (
           <View style={{ marginBottom: 20 }}>
             <SectionLabel label={t.labelProspect} theme={t} />
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {data.context.map((kv, i) => (
                 <View key={i} style={{
-                  width: data.context.length <= 3 ? `${Math.floor(100 / data.context.length) - 2}%` as any : '31%',
+                  width: data.context.length <= 3 ? `${Math.floor(100 / data.context.length) - 2}%` as `${number}%` : '31%',
                   backgroundColor: t.cardBg,
                   borderWidth: 1,
                   borderColor: t.cardBorder,
@@ -343,10 +444,10 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
           </View>
         )}
 
-        {/* ── Content sections ───────────────────────── */}
-        {data.sections.map((section, si) => (
+        {/* Content sections */}
+        {sectionsFiltered.map((section, si) => (
           <View key={`s-${si}`} style={{ marginBottom: 16 }} wrap={false}>
-            <SectionLabel label={section.header} theme={t} />
+            <SectionLabel label={section.header} theme={t} source={section.source} />
             <View style={{
               backgroundColor: t.cardBg,
               borderWidth: 1,
@@ -415,7 +516,24 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
           </View>
         ))}
 
-        {/* ── SCT Primary ────────────────────────────── */}
+        {/* Re-engagement conditions (replaces tiers when cold) */}
+        {isCold && data.reEngagementTrigger && (
+          <View style={{ marginBottom: 16 }} wrap={false}>
+            <SectionLabel label="Re-Engagement Conditions" theme={t} />
+            <View style={{
+              backgroundColor: t.cardBg,
+              borderWidth: 1,
+              borderColor: t.secondary,
+              borderRadius: 8,
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+            }}>
+              <Text style={bodyText.base}>{data.reEngagementTrigger}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* SCT Primary */}
         {data.sctPrimary && sctMode !== 'none' && (
           <View style={{ marginTop: 8, marginBottom: 16 }} wrap={false}>
             <SectionLabel label={data.sctPrimary.groupLabel} theme={t} />
@@ -451,7 +569,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
           </View>
         )}
 
-        {/* ── SCT Secondary ──────────────────────────── */}
+        {/* SCT Secondary */}
         {data.sctSecondary && sctMode === 'dual' && (
           <View style={{ marginBottom: 16 }} wrap={false}>
             <SectionLabel label={data.sctSecondary.groupLabel} theme={t} />
@@ -487,34 +605,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
           </View>
         )}
 
-        {/* ── Strategic note ─────────────────────────── */}
-        {data.strategicNote && (
-          <View style={{
-            marginTop: 8,
-            marginBottom: 16,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            backgroundColor: t.noteBg,
-            borderLeftWidth: 3,
-            borderLeftColor: t.noteBorder,
-            borderTopRightRadius: 6,
-            borderBottomRightRadius: 6,
-          }} wrap={false}>
-            <Text style={{
-              fontFamily: t.displayFont,
-              fontSize: 7.5,
-              fontWeight: 700,
-              letterSpacing: t.titleTransform === 'none' ? 1 : 2,
-              color: t.noteBorder,
-              marginBottom: 6,
-            }}>
-              {isOC ? 'Note' : 'STRATEGIC NOTE'}
-            </Text>
-            <Text style={bodyText.base}>{data.strategicNote}</Text>
-          </View>
-        )}
-
-        {/* ── Gaps ───────────────────────────────────── */}
+        {/* Gaps */}
         {data.gaps.length > 0 && (
           <View style={{
             marginTop: 8,
@@ -554,7 +645,7 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
           </View>
         )}
 
-        {/* ── Next steps ─────────────────────────────── */}
+        {/* Next steps */}
         {data.nextSteps.length > 0 && (
           <View style={{ marginTop: 8 }}>
             <SectionLabel label="Next Steps" theme={t} />
@@ -602,7 +693,31 @@ export function BriefPDF({ data, brandId, brandName, briefTypeName, sctMode }: B
           </View>
         )}
 
-        {/* ── Footer ─────────────────────────────────── */}
+        {/* Version history */}
+        {data.versionHistory && data.versionHistory.length > 0 && (
+          <View style={{
+            marginTop: 16,
+            paddingTop: 10,
+            borderTopWidth: 0.5,
+            borderTopColor: t.cardBorder,
+          }}>
+            <Text style={{
+              fontFamily: t.displayFont,
+              fontSize: 7,
+              fontWeight: 700,
+              letterSpacing: t.titleTransform === 'none' ? 1 : 2,
+              color: t.textMuted,
+              marginBottom: 3,
+            }}>
+              {tx('Version history', t.titleTransform)}
+            </Text>
+            <Text style={{ fontSize: 8, color: t.textMuted }}>
+              {formatVersionHistory(data)}
+            </Text>
+          </View>
+        )}
+
+        {/* Footer */}
         <View style={{
           marginTop: 'auto',
           paddingTop: 14,

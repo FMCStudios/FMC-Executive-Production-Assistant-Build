@@ -2,6 +2,7 @@
 
 import Header from '@/components/Header';
 import LifecycleView from '@/components/LifecycleView';
+import ActiveBriefs from '@/components/ActiveBriefs';
 
 export default function Home() {
   return (
@@ -22,7 +23,12 @@ export default function Home() {
             </p>
           </div>
 
-          <LifecycleView />
+          <section>
+            <h2 className="text-[10px] uppercase tracking-[0.15em] text-fmc-firestarter/70 mb-4">Tools</h2>
+            <LifecycleView />
+          </section>
+
+          <ActiveBriefs />
         </div>
       </main>
     </div>

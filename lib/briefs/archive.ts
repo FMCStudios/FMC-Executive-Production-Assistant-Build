@@ -3,7 +3,7 @@ import type { BriefTypeConfig } from '@/types/brief-schema';
 export const archive: BriefTypeConfig = {
   id: 'archive',
   name: 'Archive',
-  phase: 6,
+  phase: 7,
   emoji: '\uD83D\uDCE6',
   tagline: 'where does it live, can we delete it?',
   description: 'Storage action plan + delivery proof + portfolio flags — 5 minute checklist.',

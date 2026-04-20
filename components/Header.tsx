@@ -42,6 +42,12 @@ export default function Header({ briefTypeName }: { briefTypeName?: string }) {
   items.push({ key: 'briefs', label: 'My Briefs', href: '/dashboard', isActive: (p) => p.startsWith('/dashboard') });
   if (user) {
     items.push({
+      key: 'pipeline',
+      label: 'Pipeline',
+      href: '/pipeline',
+      isActive: (p) => p.startsWith('/pipeline'),
+    });
+    items.push({
       key: 'crew',
       label: 'Crew & Gear',
       href: '/crew',
