@@ -57,7 +57,7 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Roster!A2:O',
+    range: 'Roster!A2:P',
   });
 
   const rows = res.data.values || [];
@@ -82,9 +82,9 @@ export async function readCrewRoster(): Promise<{ success: boolean; crew: CrewMe
         otherRate: row[10]?.trim() || '',
         otherRateLabel: row[11]?.trim() || '',
         notes: row[12]?.trim() || '',
-        skills: [],
         accessLevel: row[13]?.trim() || 'Crew',
         rosterType: parseRosterType(row[14]),
+        skills: (row[15] || '').split(',').map((s: string) => s.trim()).filter(Boolean),
         displayName: aka || firstName,
         fullName: `${firstName} ${lastName}`.trim(),
       };
@@ -111,6 +111,7 @@ export async function writeCrewMember(data: {
   producingRate: string;
   otherRate: string;
   otherRateLabel: string;
+  skills?: string;
 }): Promise<{ success: boolean }> {
   const config = getAuth();
   if (!config) return { success: false };
@@ -131,14 +132,15 @@ export async function writeCrewMember(data: {
     data.producingRate,
     data.otherRate,
     data.otherRateLabel,
-    '',      // M: Notes
-    'Crew',  // N: Access Level (default)
-    'team',  // O: Roster Type (default)
+    '',                 // M: Notes
+    'Crew',             // N: Access Level (default)
+    'team',             // O: Roster Type (default)
+    data.skills || '',  // P: Skills
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'Roster!A:O',
+    range: 'Roster!A:P',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
@@ -161,7 +163,7 @@ export async function writeRosterUpdate(
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Roster!A2:O',
+    range: 'Roster!A2:P',
   });
 
   const rows = res.data.values || [];

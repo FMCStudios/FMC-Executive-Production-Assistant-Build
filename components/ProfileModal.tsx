@@ -181,12 +181,15 @@ export default function ProfileModal() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      let changedFields = 0;
       if (hasProfileChanges) {
-        await fetch('/api/profile/update', {
+        const res = await fetch('/api/profile/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ profile }),
         });
+        const data = await res.json().catch(() => ({}));
+        if (typeof data?.changes === 'number') changedFields += data.changes;
       }
 
       if (changedTeamRows.length > 0) {
@@ -201,9 +204,14 @@ export default function ProfileModal() {
             }),
           })
         ));
+        changedFields += changedTeamRows.length;
       }
 
-      setToast('Profile saved.');
+      if (changedFields > 0) {
+        setToast(`${changedFields} field${changedFields === 1 ? '' : 's'} updated.`);
+      } else {
+        setToast('No changes to save.');
+      }
       close();
     } catch {
       setToast('Save failed. Check your connection.');

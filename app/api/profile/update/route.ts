@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
   try {
     // Find the user's row in Roster
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'Roster!A2:O' });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'Roster!A2:P' });
     const rows = res.data.values || [];
     const rowIndex = rows.findIndex(row => (row[5] || '').toLowerCase() === session.email.toLowerCase());
 
@@ -35,36 +35,51 @@ export async function POST(req: Request) {
     }
 
     const oldRow = rows[rowIndex];
+    // Fields we track for the diff. Indices in `oldRow`:
+    //   A–M = 0–12, P (Skills) = 15
     const fields = ['First Name', 'Last Name', 'AKA', 'Primary Role', 'Other Roles', 'Email', 'Phone',
-      'Shooting Rate', 'Editing Rate', 'Producing Rate', 'Other Rate', 'Other Rate Label', 'Notes'];
+      'Shooting Rate', 'Editing Rate', 'Producing Rate', 'Other Rate', 'Other Rate Label', 'Notes', 'Skills'];
 
-    const newRow = [
+    const newRowAM = [
       profile.firstName || '', profile.lastName || '', profile.aka || '',
       profile.primaryRole || '', profile.otherRoles || '', profile.email || '',
       profile.phone || '', profile.shootingRate || '', profile.editingRate || '',
       profile.producingRate || '', profile.otherRate || '', profile.otherRateLabel || '',
       profile.notes || '',
     ];
+    const newSkills = profile.skills || '';
 
     // Compute diff
     const changes: string[] = [];
-    for (let i = 0; i < fields.length; i++) {
+    for (let i = 0; i < newRowAM.length; i++) {
       const oldVal = (oldRow[i] || '').trim();
-      const newVal = (newRow[i] || '').trim();
+      const newVal = (newRowAM[i] || '').trim();
       if (oldVal !== newVal) {
         changes.push(`${fields[i]}: "${oldVal}" → "${newVal}"`);
       }
     }
+    const oldSkills = (oldRow[15] || '').trim();
+    if (oldSkills !== newSkills.trim()) {
+      changes.push(`Skills: "${oldSkills}" → "${newSkills.trim()}"`);
+    }
 
-    // Write updated row (A{row}:M{row}) — N (Access Level) and O (Roster Type)
-    // are admin-owned and only written by /api/roster/update
+    // Write A:M (user-owned) and P (skills) separately.
+    // N (Access Level) and O (Roster Type) are admin-only — never written here.
     const sheetRow = rowIndex + 2; // +2 for header + 0-index
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `Roster!A${sheetRow}:M${sheetRow}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [newRow] },
-    });
+    await Promise.all([
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Roster!A${sheetRow}:M${sheetRow}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [newRowAM] },
+      }),
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Roster!P${sheetRow}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[newSkills]] },
+      }),
+    ]);
 
     // Update gear: clear old gear for this owner, write new
     const fullName = `${profile.firstName} ${profile.lastName}`.trim();
