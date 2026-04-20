@@ -108,7 +108,12 @@ export async function uploadBriefToDrive(input: {
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[Drive] Upload failed:', err.message);
+    console.error(
+      '[Drive] Upload failed:',
+      err.message,
+      err.stack,
+      JSON.stringify(err, Object.getOwnPropertyNames(err))
+    );
     return { success: false, error: err.message };
   }
 }
