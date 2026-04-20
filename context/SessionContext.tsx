@@ -8,6 +8,7 @@ export type ClientSession = {
   lastName: string;
   displayName: string;
   accessLevel: 'Admin' | 'Supervisor' | 'Crew';
+  primaryRole: string;
 };
 
 type SessionContextType = {

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { SessionProvider } from '@/context/SessionContext';
-import { OperatorProvider } from '@/context/OperatorContext';
 import { ProfileModalProvider } from '@/context/ProfileModalContext';
 import ProfileModal from '@/components/ProfileModal';
 import './globals.css';
@@ -15,12 +14,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <SessionProvider>
-          <OperatorProvider>
-            <ProfileModalProvider>
-              {children}
-              <ProfileModal />
-            </ProfileModalProvider>
-          </OperatorProvider>
+          <ProfileModalProvider>
+            {children}
+            <ProfileModal />
+          </ProfileModalProvider>
         </SessionProvider>
       </body>
     </html>

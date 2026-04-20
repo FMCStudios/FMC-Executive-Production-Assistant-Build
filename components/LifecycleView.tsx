@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { briefTypesList } from '@/lib/briefs';
-import { useOperator } from '@/context/OperatorContext';
 
 type PhaseMeta = {
   fills: string;
@@ -104,7 +103,6 @@ const phaseMeta: Record<number, PhaseMeta> = {
 
 export default function LifecycleView() {
   const router = useRouter();
-  const { activeOperator } = useOperator();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
@@ -117,7 +115,6 @@ export default function LifecycleView() {
         const meta = phaseMeta[brief.phase];
         const isExpanded = expanded === brief.id;
         const isTeal = brief.phase <= 2;
-        const isOperatorPhase = activeOperator.phases.includes(brief.phase);
         const showHinge = brief.phase === 3;
 
         return (
@@ -179,7 +176,6 @@ export default function LifecycleView() {
                 } ${showHinge ? 'mb-3' : ''} ${isExpanded ? 'glass-panel-active border-l-2 border-fmc-firestarter' : ''}`}
                 style={{
                   transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  opacity: isOperatorPhase ? undefined : 0.5,
                 }}
               >
                 <div className="flex items-start justify-between gap-4">

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useOperator } from '@/context/OperatorContext';
 import { useSession } from '@/context/SessionContext';
 import type { BriefTypeConfig } from '@/types/brief-schema';
 import type { BriefSchema } from '@/types/brief-schema';
@@ -17,8 +16,8 @@ import Toast from './ui/Toast';
 type PipelineStatus = 'idle' | 'saving' | 'saved' | 'failed';
 
 export default function BriefGenerator({ briefType }: { briefType: BriefTypeConfig }) {
-  const { operatorId } = useOperator();
   const { user } = useSession();
+  const primaryRole = user?.primaryRole || '';
   const isIntake = briefType.id === 'lead-intake';
   const isDiscovery = briefType.id === 'discovery';
   const isProduction = briefType.id === 'production';
@@ -43,7 +42,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
           briefType: briefType.id,
           briefTypeName: briefType.name,
           phase: briefType.phase,
-          operatorId,
+          operatorId: primaryRole,
+          primaryRole,
           operatorEmail: user?.email || '',
           rawInput: input,
           briefOutput: JSON.stringify(data),
@@ -71,7 +71,8 @@ export default function BriefGenerator({ briefType }: { briefType: BriefTypeConf
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           briefType: briefType.id,
-          operatorId,
+          operatorId: primaryRole,
+          primaryRole,
           rawInput: input,
         }),
       });

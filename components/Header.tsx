@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import OperatorSelector from './OperatorSelector';
 import { useSession } from '@/context/SessionContext';
 import { useProfileModal } from '@/context/ProfileModalContext';
 
@@ -145,7 +144,6 @@ export default function Header({ briefTypeName }: { briefTypeName?: string }) {
               </button>
             </div>
           )}
-          <OperatorSelector />
         </div>
       </div>
 
