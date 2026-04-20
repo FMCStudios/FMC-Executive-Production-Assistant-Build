@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useSession } from '@/context/SessionContext';
 import { useProfileModal } from '@/context/ProfileModalContext';
 import Toast from '@/components/ui/Toast';
+import SkillsPicker from '@/components/SkillsPicker';
 
 type RosterType = 'owner' | 'team' | 'freelance';
 
@@ -313,7 +314,10 @@ export default function ProfileModal() {
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="text-xs text-white/40">Skills</label>
-                      <input type="text" className="glass-input w-full px-3 py-2.5 text-sm" value={profile.skills} onChange={e => setField('skills', e.target.value)} placeholder="Sound Design, MGFX, Colour, etc." />
+                      <SkillsPicker
+                        value={profile.skills ? profile.skills.split(',').map(s => s.trim()).filter(Boolean) : []}
+                        onChange={(arr) => setField('skills', arr.join(', '))}
+                      />
                     </div>
                   </div>
                 </div>

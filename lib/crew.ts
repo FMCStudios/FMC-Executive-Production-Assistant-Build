@@ -148,6 +148,41 @@ export async function writeCrewMember(data: {
   return { success: true };
 }
 
+export async function readSkillsLibrary(): Promise<string[]> {
+  const config = getAuth();
+  if (!config) return [];
+  const { auth, spreadsheetId } = config;
+  const sheets = google.sheets({ version: 'v4', auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'Skills!A2:A',
+  });
+  return (res.data.values || [])
+    .map(r => (r[0] || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+export async function appendSkillToLibrary(skill: string): Promise<{ added: boolean; skills: string[] }> {
+  const trimmed = skill.trim();
+  if (!trimmed) return { added: false, skills: await readSkillsLibrary() };
+  const existing = await readSkillsLibrary();
+  if (existing.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+    return { added: false, skills: existing };
+  }
+  const config = getAuth();
+  if (!config) return { added: false, skills: existing };
+  const { auth, spreadsheetId } = config;
+  const sheets = google.sheets({ version: 'v4', auth });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: 'Skills!A:A',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[trimmed]] },
+  });
+  return { added: true, skills: [...existing, trimmed].sort((a, b) => a.localeCompare(b)) };
+}
+
 export async function writeRosterUpdate(
   email: string,
   updates: { rosterType?: RosterType; otherRoles?: string }
