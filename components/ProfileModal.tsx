@@ -53,6 +53,46 @@ type TeamRow = {
   assignableRoles: string[];
 };
 
+type GearRow = {
+  id: string; // local key only — never persisted
+  itemName: string;
+  brand: string;
+  category: string;
+  rentalRate: string;
+  condition: string;
+  serialNumber: string;
+  notes: string;
+};
+
+type GearApi = {
+  itemName: string;
+  brand: string;
+  category: string;
+  owner: string;
+  rentalRate: string;
+  condition: string;
+  serialNumber: string;
+  notes: string;
+};
+
+function newGearId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `g_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function gearKey(rows: GearRow[]): string {
+  // Stable serialization for change detection. Strip `id` and sort by the
+  // remaining content so ordering within the UI doesn't count as a change.
+  return JSON.stringify(
+    rows
+      .map(({ id: _id, ...rest }) => rest)
+      .map(r => JSON.stringify(r, Object.keys(r).sort()))
+      .sort()
+  );
+}
+
 const ROLES = ['DP', 'Camera Op', 'Gaffer', 'Sound Mixer', 'Editor', 'Colourist', 'Producer', 'Production Assistant', 'BTS', 'Other'];
 const ASSIGNABLE_ROLES = ['Producer', 'Supervising Producer', 'Post Supervisor', 'DP', 'Camera Op', 'Gaffer', 'Sound Mixer', 'Editor', 'Colourist', 'Production Assistant', 'BTS', 'Other'];
 const ROSTER_TYPES: RosterType[] = ['owner', 'team', 'freelance'];
@@ -74,6 +114,9 @@ export default function ProfileModal() {
   const [teamRows, setTeamRows] = useState<TeamRow[]>([]);
   const [teamInitial, setTeamInitial] = useState<TeamRow[]>([]);
 
+  const [gearRows, setGearRows] = useState<GearRow[]>([]);
+  const [gearInitial, setGearInitial] = useState<GearRow[]>([]);
+
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [discardPrompt, setDiscardPrompt] = useState(false);
@@ -82,15 +125,17 @@ export default function ProfileModal() {
   const editingOther = isAdmin && !!editingEmail && editingEmail.toLowerCase() !== user?.email.toLowerCase();
   const targetEmail = editingOther ? editingEmail! : user?.email || '';
 
-  // Fetch crew roster and prefill
+  // Fetch crew + gear and prefill
   useEffect(() => {
     if (!isOpen || !user) return;
     setLoading(true);
     setDiscardPrompt(false);
-    fetch('/api/crew')
-      .then(r => r.json())
-      .then((d: { crew?: CrewApi[] }) => {
-        const crew = d.crew || [];
+    Promise.all([
+      fetch('/api/crew').then(r => r.json()).catch(() => ({} as { crew?: CrewApi[] })),
+      fetch('/api/gear').then(r => r.json()).catch(() => ({} as { gear?: GearApi[] })),
+    ])
+      .then(([crewData, gearData]: [{ crew?: CrewApi[] }, { gear?: GearApi[] }]) => {
+        const crew = crewData.crew || [];
         const subject = crew.find(c => c.email.toLowerCase() === targetEmail.toLowerCase());
         const subjectProfile: ProfileForm = subject ? {
           firstName: subject.firstName, lastName: subject.lastName, aka: subject.aka,
@@ -117,8 +162,29 @@ export default function ProfileModal() {
           setTeamRows(rows);
           setTeamInitial(rows.map(r => ({ ...r, assignableRoles: [...r.assignableRoles] })));
         }
+
+        // Gear — filter by the subject's fullName. Backend now keys gear
+        // rows by "First Last" from the sheet row, so we match on that.
+        const subjectFullName = subject
+          ? `${subject.firstName} ${subject.lastName}`.trim().toLowerCase()
+          : '';
+        const allGear = gearData.gear || [];
+        const mineRaw = subjectFullName
+          ? allGear.filter(g => (g.owner || '').trim().toLowerCase() === subjectFullName)
+          : [];
+        const mine: GearRow[] = mineRaw.map(g => ({
+          id: newGearId(),
+          itemName: g.itemName || '',
+          brand: g.brand || '',
+          category: g.category || '',
+          rentalRate: g.rentalRate || '',
+          condition: g.condition || '',
+          serialNumber: g.serialNumber || '',
+          notes: g.notes || '',
+        }));
+        setGearRows(mine);
+        setGearInitial(mine.map(g => ({ ...g })));
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
   }, [isOpen, user, targetEmail, editingOther]);
 
@@ -131,7 +197,7 @@ export default function ProfileModal() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, profile, profileInitial, teamRows, teamInitial]);
+  }, [isOpen, profile, profileInitial, teamRows, teamInitial, gearRows, gearInitial]);
 
   const hasProfileChanges = useMemo(() => {
     return (Object.keys(profile) as (keyof ProfileForm)[]).some(k => profile[k] !== profileInitial[k]);
@@ -148,9 +214,30 @@ export default function ProfileModal() {
     });
   }, [teamRows, teamInitial]);
 
-  const hasAnyChanges = hasProfileChanges || changedTeamRows.length > 0;
+  const hasGearChanges = useMemo(
+    () => gearKey(gearRows) !== gearKey(gearInitial),
+    [gearRows, gearInitial]
+  );
+
+  const hasAnyChanges = hasProfileChanges || changedTeamRows.length > 0 || hasGearChanges;
 
   const setField = (k: keyof ProfileForm, v: string) => setProfile(p => ({ ...p, [k]: v }));
+
+  const addGearRow = () => {
+    setGearRows(rows => [...rows, {
+      id: newGearId(),
+      itemName: '', brand: '', category: '',
+      rentalRate: '', condition: '', serialNumber: '', notes: '',
+    }]);
+  };
+
+  const updateGearRow = (id: string, patch: Partial<GearRow>) => {
+    setGearRows(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
+
+  const removeGearRow = (id: string) => {
+    setGearRows(rows => rows.filter(r => r.id !== id));
+  };
 
   const updateTeamRow = (email: string, patch: Partial<TeamRow>) => {
     setTeamRows(rows => rows.map(r => r.email === email ? { ...r, ...patch } : r));
@@ -180,6 +267,7 @@ export default function ProfileModal() {
   const confirmDiscard = () => {
     setProfile(profileInitial);
     setTeamRows(teamInitial.map(r => ({ ...r, assignableRoles: [...r.assignableRoles] })));
+    setGearRows(gearInitial.map(g => ({ ...g })));
     setDiscardPrompt(false);
     close();
   };
@@ -188,17 +276,23 @@ export default function ProfileModal() {
     setSaving(true);
     try {
       let changedFields = 0;
-      if (hasProfileChanges) {
+      if (hasProfileChanges || hasGearChanges) {
+        const body: Record<string, unknown> = {
+          profile,
+          targetEmail: editingOther ? targetEmail : undefined,
+        };
+        if (hasGearChanges) {
+          // Strip local ids — backend keys gear on owner name, not id.
+          body.gear = gearRows.map(({ id: _id, ...rest }) => rest);
+        }
         const res = await fetch('/api/profile/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            profile,
-            targetEmail: editingOther ? targetEmail : undefined,
-          }),
+          body: JSON.stringify(body),
         });
         const data = await res.json().catch(() => ({}));
         if (typeof data?.changes === 'number') changedFields += data.changes;
+        if (hasGearChanges) changedFields += 1;
       }
 
       if (changedTeamRows.length > 0) {
@@ -368,7 +462,38 @@ export default function ProfileModal() {
                   </div>
                 </div>
 
-                {/* ZONE 2: Team Roles (admin only) */}
+                {/* ZONE: Gear */}
+                <div className="glass-panel p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70">Gear</h2>
+                    <button
+                      type="button"
+                      onClick={addGearRow}
+                      className="btn-ghost px-3 py-1.5 text-[11px] active:scale-[0.97]"
+                    >
+                      + Add item
+                    </button>
+                  </div>
+
+                  {gearRows.length === 0 ? (
+                    <p className="text-xs text-white/40 italic">
+                      No gear listed yet. Click &ldquo;Add item&rdquo; to contribute to the house library.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {gearRows.map(row => (
+                        <GearRowBlock
+                          key={row.id}
+                          row={row}
+                          onChange={(patch) => updateGearRow(row.id, patch)}
+                          onRemove={() => removeGearRow(row.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ZONE: Team Roles (admin only) */}
                 {isAdmin && (
                   <div className="glass-panel p-6">
                     <h2 className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 mb-4">Team Roles</h2>
@@ -490,6 +615,100 @@ function TeamRowBlock({
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function GearRowBlock({
+  row,
+  onChange,
+  onRemove,
+}: {
+  row: GearRow;
+  onChange: (patch: Partial<GearRow>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="glass-panel p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/40">Item</label>
+              <input
+                type="text"
+                className="glass-input w-full px-3 py-2 text-sm"
+                value={row.itemName}
+                onChange={(e) => onChange({ itemName: e.target.value })}
+                placeholder="FX3, Ronin 2, etc."
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/40">Brand</label>
+              <input
+                type="text"
+                className="glass-input w-full px-3 py-2 text-sm"
+                value={row.brand}
+                onChange={(e) => onChange({ brand: e.target.value })}
+                placeholder="Sony, DJI, etc."
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/40">Category</label>
+              <input
+                type="text"
+                className="glass-input w-full px-3 py-2 text-sm"
+                value={row.category}
+                onChange={(e) => onChange({ category: e.target.value })}
+                placeholder="Camera, Lens, Audio..."
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/40">Day Rate</label>
+              <input
+                type="text"
+                className="glass-input w-full px-3 py-2 text-sm"
+                value={row.rentalRate}
+                onChange={(e) => onChange({ rentalRate: e.target.value })}
+                placeholder="$"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/40">Condition</label>
+              <input
+                type="text"
+                className="glass-input w-full px-3 py-2 text-sm"
+                value={row.condition}
+                onChange={(e) => onChange({ condition: e.target.value })}
+                placeholder="Excellent, Good, Worn"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/40">Serial #</label>
+              <input
+                type="text"
+                className="glass-input w-full px-3 py-2 text-sm"
+                value={row.serialNumber}
+                onChange={(e) => onChange({ serialNumber: e.target.value })}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-white/40 hover:text-fmc-firestarter text-sm leading-none pt-1 active:scale-[0.97]"
+          style={{ transition: 'color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+          aria-label="Remove gear item"
+        >
+          ×
+        </button>
       </div>
     </div>
   );
