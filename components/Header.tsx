@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { signOut } from 'next-auth/react';
 import { useSession } from '@/context/SessionContext';
 import { useProfileModal } from '@/context/ProfileModalContext';
 
@@ -24,8 +25,7 @@ export default function Header({ briefTypeName }: { briefTypeName?: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
+    await signOut({ callbackUrl: '/login' });
   };
 
   useEffect(() => {

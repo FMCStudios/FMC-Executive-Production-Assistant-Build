@@ -24,9 +24,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchSession = () => {
+    // NextAuth catchall provides /api/auth/session returning
+    //   { user: { email, firstName, ..., primaryRole }, expires }
+    // or {} when unauthenticated.
     fetch('/api/auth/session')
       .then(r => r.json())
-      .then(d => setUser(d.user || null))
+      .then(d => setUser(d?.user?.email ? (d.user as ClientSession) : null))
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   };

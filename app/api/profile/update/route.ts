@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth';
 import { writeGearItems } from '@/lib/gear';
 
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { profile, gear, targetEmail } = await req.json();

@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth';
 import { writeRosterUpdate, type RosterType } from '@/lib/crew';
 
 export async function POST(req: Request) {
-  const session = getSession();
+  const session = await getSession();
   if (!session || session.accessLevel !== 'Admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }

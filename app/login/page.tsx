@@ -3,11 +3,14 @@
 import { Suspense, useState } from 'react';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 
 const ERRORS: Record<string, string> = {
-  expired: 'That link has expired. Request a new one.',
-  missing: 'Invalid login link.',
-  notfound: 'Account not found.',
+  AccessDenied: 'Your Google account isn\u2019t on the FMC roster. Contact Ferg to be added.',
+  Configuration: 'Sign-in is temporarily unavailable. Try again in a minute.',
+  OAuthSignin: 'Couldn\u2019t reach Google. Try again.',
+  OAuthCallback: 'Google returned an unexpected response. Try again.',
+  Default: 'Sign-in failed. Try again.',
 };
 
 export default function LoginPage() {
@@ -21,24 +24,15 @@ export default function LoginPage() {
 function LoginForm() {
   const params = useSearchParams();
   const errorCode = params.get('error');
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setSending(true);
-    try {
-      await fetch('/api/auth/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      setSent(true);
-    } catch { /* silent */ }
-    setSending(false);
+  const handleGoogle = async () => {
+    setSigningIn(true);
+    await signIn('google', { callbackUrl: '/dashboard' });
   };
+
+  const errorMessage =
+    errorCode && (ERRORS[errorCode] || ERRORS.Default);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
@@ -51,61 +45,48 @@ function LoginForm() {
           <p className="text-sm text-white/40">Executive Production Assistant</p>
         </div>
 
-        {errorCode && ERRORS[errorCode] && (
+        {errorMessage && (
           <div
             className="glass-panel p-4 mb-6 text-sm text-fmc-firestarter/80 animate-fadeUp"
             style={{ borderLeft: '2px solid rgba(224,52,19,0.4)' }}
           >
-            {ERRORS[errorCode]}
+            {errorMessage}
           </div>
         )}
 
-        {sent ? (
-          <div className="glass-panel p-6 text-center animate-fadeUp">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-4"
-              style={{ background: 'rgba(73,121,123,0.15)', border: '1px solid rgba(73,121,123,0.3)' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#49797B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <p className="text-sm text-fmc-offwhite font-medium mb-1">Check your email</p>
-            <p className="text-xs text-white/40">
-              If your email is on the roster, you&rsquo;ll get a login link. It expires in 30 minutes.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="glass-panel p-6 animate-fadeUp">
-            <label className="text-xs uppercase tracking-[0.15em] text-fmc-firestarter/70 block mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              className="glass-input w-full px-3 py-2.5 text-sm mb-4"
-              placeholder="you@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={sending}
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={sending || !email.trim()}
-              className="btn-firestarter w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
-            >
-              {sending ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Sending...
-                </>
-              ) : (
-                'Send me a link'
-              )}
-            </button>
-          </form>
-        )}
+        <div className="glass-panel p-6 animate-fadeUp">
+          <button
+            type="button"
+            onClick={handleGoogle}
+            disabled={signingIn}
+            className="btn-firestarter w-full py-3 text-sm font-semibold flex items-center justify-center gap-2.5 disabled:opacity-60"
+          >
+            {signingIn ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Redirecting...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+                  <path fill="#fff" d="M21.6 12.227c0-.709-.064-1.39-.182-2.045H12v3.868h5.382a4.6 4.6 0 0 1-1.995 3.018v2.51h3.227c1.891-1.74 2.986-4.3 2.986-7.351z"/>
+                  <path fill="#fff" fillOpacity="0.85" d="M12 22c2.7 0 4.964-.895 6.614-2.422l-3.227-2.51c-.895.6-2.04.955-3.387.955-2.604 0-4.81-1.76-5.595-4.122H3.064v2.59A9.996 9.996 0 0 0 12 22z"/>
+                  <path fill="#fff" fillOpacity="0.7" d="M6.405 13.9A5.996 5.996 0 0 1 6.09 12c0-.66.114-1.302.314-1.9V7.51H3.064A9.996 9.996 0 0 0 2 12c0 1.614.386 3.14 1.064 4.49l3.341-2.59z"/>
+                  <path fill="#fff" fillOpacity="0.55" d="M12 5.977c1.468 0 2.786.505 3.823 1.496l2.868-2.868C16.959 2.992 14.695 2 12 2A9.996 9.996 0 0 0 3.064 7.51l3.341 2.59C7.19 7.737 9.396 5.977 12 5.977z"/>
+                </svg>
+                Sign in with Google
+              </>
+            )}
+          </button>
+
+          <p className="text-[11px] text-white/35 mt-4 text-center leading-relaxed">
+            FMC roster only. If your Google email isn&rsquo;t listed,
+            <br />reach out to Ferg.
+          </p>
+        </div>
       </div>
     </div>
   );
