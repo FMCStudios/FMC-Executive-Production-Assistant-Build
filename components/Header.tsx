@@ -41,17 +41,13 @@ export default function Header({ briefTypeName }: { briefTypeName?: string }) {
   const items: NavItem[] = [];
   items.push({ key: 'home', label: 'Home', href: '/', isActive: (p) => p === '/' });
   items.push({ key: 'briefs', label: 'My Briefs', href: '/dashboard', isActive: (p) => p.startsWith('/dashboard') });
-  if (user?.accessLevel === 'Supervisor' || user?.accessLevel === 'Admin') {
+  if (user) {
     items.push({
       key: 'crew',
       label: 'Crew & Gear',
       href: '/crew',
       isActive: (p) => p.startsWith('/crew') && !p.startsWith('/crew/join'),
     });
-  }
-  items.push({ key: 'profile', label: 'Profile', onClick: () => profileModal.open(), divider: true });
-  if (user?.accessLevel === 'Admin') {
-    items.push({ key: 'teamRoles', label: 'Team Roles', onClick: () => profileModal.open() });
   }
 
   const trigger = (item: NavItem) => {
