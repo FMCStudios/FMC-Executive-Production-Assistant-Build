@@ -116,6 +116,7 @@ export default function ProfileModal() {
 
   const [gearRows, setGearRows] = useState<GearRow[]>([]);
   const [gearInitial, setGearInitial] = useState<GearRow[]>([]);
+  const [expandedGearId, setExpandedGearId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -214,21 +215,39 @@ export default function ProfileModal() {
     });
   }, [teamRows, teamInitial]);
 
-  const hasGearChanges = useMemo(
-    () => gearKey(gearRows) !== gearKey(gearInitial),
-    [gearRows, gearInitial]
-  );
+  const isGearRowComplete = (r: GearRow) =>
+    r.itemName.trim() !== '' &&
+    r.brand.trim() !== '' &&
+    r.category.trim() !== '' &&
+    r.rentalRate.trim() !== '';
+
+  const isGearRowBlank = (r: GearRow) =>
+    !r.itemName.trim() &&
+    !r.brand.trim() &&
+    !r.category.trim() &&
+    !r.rentalRate.trim() &&
+    !r.condition.trim() &&
+    !r.serialNumber.trim() &&
+    !r.notes.trim();
+
+  const hasGearChanges = useMemo(() => {
+    const current = gearRows.filter(r => !isGearRowBlank(r));
+    const initial = gearInitial.filter(r => !isGearRowBlank(r));
+    return gearKey(current) !== gearKey(initial);
+  }, [gearRows, gearInitial]);
 
   const hasAnyChanges = hasProfileChanges || changedTeamRows.length > 0 || hasGearChanges;
 
   const setField = (k: keyof ProfileForm, v: string) => setProfile(p => ({ ...p, [k]: v }));
 
   const addGearRow = () => {
-    setGearRows(rows => [...rows, {
+    const newRow: GearRow = {
       id: newGearId(),
       itemName: '', brand: '', category: '',
       rentalRate: '', condition: '', serialNumber: '', notes: '',
-    }]);
+    };
+    setGearRows(rows => [newRow, ...rows]);
+    setExpandedGearId(newRow.id);
   };
 
   const updateGearRow = (id: string, patch: Partial<GearRow>) => {
@@ -283,7 +302,10 @@ export default function ProfileModal() {
         };
         if (hasGearChanges) {
           // Strip local ids — backend keys gear on owner name, not id.
-          body.gear = gearRows.map(({ id: _id, ...rest }) => rest);
+          // Also drop rows whose itemName is blank (never persisted).
+          body.gear = gearRows
+            .filter(r => r.itemName.trim())
+            .map(({ id: _id, ...rest }) => rest);
         }
         const res = await fetch('/api/profile/update', {
           method: 'POST',
@@ -481,14 +503,27 @@ export default function ProfileModal() {
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {gearRows.map(row => (
-                        <GearRowBlock
-                          key={row.id}
-                          row={row}
-                          onChange={(patch) => updateGearRow(row.id, patch)}
-                          onRemove={() => removeGearRow(row.id)}
-                        />
-                      ))}
+                      {gearRows.map(row =>
+                        row.id === expandedGearId ? (
+                          <GearRowBlock
+                            key={row.id}
+                            row={row}
+                            onChange={(patch) => updateGearRow(row.id, patch)}
+                            onRemove={() => {
+                              removeGearRow(row.id);
+                              setExpandedGearId(null);
+                            }}
+                            onDone={() => setExpandedGearId(null)}
+                            canDone={isGearRowComplete(row)}
+                          />
+                        ) : (
+                          <GearPill
+                            key={row.id}
+                            row={row}
+                            onExpand={() => setExpandedGearId(row.id)}
+                          />
+                        )
+                      )}
                     </div>
                   )}
                 </div>
@@ -624,10 +659,14 @@ function GearRowBlock({
   row,
   onChange,
   onRemove,
+  onDone,
+  canDone,
 }: {
   row: GearRow;
   onChange: (patch: Partial<GearRow>) => void;
   onRemove: () => void;
+  onDone: () => void;
+  canDone: boolean;
 }) {
   return (
     <div className="glass-panel p-4">
@@ -710,6 +749,47 @@ function GearRowBlock({
           ×
         </button>
       </div>
+      <div className="flex justify-end mt-3">
+        <button
+          type="button"
+          onClick={onDone}
+          disabled={!canDone}
+          className="btn-ghost px-3 py-1.5 text-[11px] active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Done
+        </button>
+      </div>
     </div>
+  );
+}
+
+function GearPill({
+  row,
+  onExpand,
+}: {
+  row: GearRow;
+  onExpand: () => void;
+}) {
+  const parts = [row.itemName, row.brand, row.category].filter(Boolean);
+  const rate = row.rentalRate ? `$${row.rentalRate.replace(/^\$/, '')}` : '';
+  const label = [parts.join(' · '), rate].filter(Boolean).join(' · ');
+
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      className="w-full text-left glass-panel px-4 py-3 flex items-center justify-between group active:scale-[0.99]"
+      style={{ transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+    >
+      <span className="text-sm text-fmc-offwhite truncate">
+        {label || 'Untitled gear'}
+      </span>
+      <span
+        className="text-[10px] uppercase tracking-[0.15em] text-white/30 group-hover:text-fmc-firestarter/60 flex-shrink-0 ml-3"
+        style={{ transition: 'color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      >
+        Edit
+      </span>
+    </button>
   );
 }
