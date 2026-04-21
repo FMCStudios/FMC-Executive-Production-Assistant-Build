@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getSession, isSupervisor } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

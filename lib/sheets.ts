@@ -36,11 +36,19 @@ export type BriefSheetData = {
   data: BriefSchema;
 };
 
-export async function writeBriefToSheet(input: BriefSheetData): Promise<{ success: boolean; briefId: string }> {
+export async function writeBriefToSheet(input: BriefSheetData): Promise<{
+  success: boolean;
+  briefId: string;
+  updatedRange?: string;
+  updatedRows?: number;
+  updatedCells?: number;
+  serviceAccount?: string;
+}> {
+  const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL || '';
   const config = getAuth();
   if (!config) {
     console.warn('[Sheets] Skipping write — not configured');
-    return { success: false, briefId: '' };
+    return { success: false, briefId: '', serviceAccount: clientEmail };
   }
 
   const { auth, spreadsheetId } = config;
@@ -114,12 +122,44 @@ export async function writeBriefToSheet(input: BriefSheetData): Promise<{ succes
     data.companyName || '',            // U: Company
   ];
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: 'Pipeline!A:U',
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [row] },
-  });
+  try {
+    const result = await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'Pipeline!A:U',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [row] },
+    });
 
-  return { success: true, briefId };
+    const updates = result.data.updates || {};
+    const updatedRange = updates.updatedRange || '';
+    const updatedRows = updates.updatedRows ?? 0;
+    const updatedCells = updates.updatedCells ?? 0;
+
+    console.log('[Sheets] Append OK', {
+      updatedRange,
+      updatedRows,
+      updatedCells,
+      serviceAccount: clientEmail,
+      spreadsheetId,
+    });
+
+    return {
+      success: true,
+      briefId,
+      updatedRange,
+      updatedRows,
+      updatedCells,
+      serviceAccount: clientEmail,
+    };
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error(
+      '[Sheets] Append failed:',
+      err.message,
+      err.stack,
+      JSON.stringify(err, Object.getOwnPropertyNames(err)),
+      { serviceAccount: clientEmail, spreadsheetId }
+    );
+    throw err;
+  }
 }

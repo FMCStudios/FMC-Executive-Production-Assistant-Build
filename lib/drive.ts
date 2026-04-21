@@ -1,6 +1,24 @@
 import { google, type drive_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { Readable } from 'node:stream';
+import type { BriefSchema } from '@/types/brief-schema';
+
+export function sanitize(name: string): string {
+  return (name || '')
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .trim();
+}
+
+export function buildBaseFilename(data: BriefSchema, briefTypeName: string): string {
+  const briefType = sanitize(briefTypeName);
+  const company = sanitize(data.companyName || data.projectName || 'Untitled');
+  const date = new Date().toISOString().split('T')[0];
+  const version = data.versionHistory?.[data.versionHistory.length - 1]?.version || 1;
+  return `FMC-Studios_${briefType}_${company}_${date}_v${version}`;
+}
 
 export type DriveUploadResult = {
   success: boolean;
@@ -133,6 +151,48 @@ export async function uploadBriefToDrive(input: {
     const err = error instanceof Error ? error : new Error(String(error));
     console.error(
       '[Drive] Upload failed:',
+      err.message,
+      err.stack,
+      JSON.stringify(err, Object.getOwnPropertyNames(err))
+    );
+    return { success: false, error: err.message || 'Unknown Drive error' };
+  }
+}
+
+export async function uploadJsonSidecar(input: {
+  jsonData: object;
+  filename: string; // base filename without extension
+  companyName: string;
+}): Promise<{ success: boolean; jsonFileId?: string; jsonUrl?: string; error?: string }> {
+  const config = getDriveClient();
+  if (!config) return { success: false, error: 'Drive not configured' };
+
+  try {
+    const { drive, parentFolderId } = config;
+    const clientFolderId = await ensureClientFolder(drive, parentFolderId, input.companyName);
+
+    const jsonBuffer = Buffer.from(JSON.stringify(input.jsonData, null, 2));
+    const jsonUpload = await drive.files.create({
+      requestBody: {
+        name: `${input.filename}.json`,
+        parents: [clientFolderId],
+      },
+      media: {
+        mimeType: 'application/json',
+        body: Readable.from(jsonBuffer),
+      },
+      fields: 'id, webViewLink',
+    });
+
+    return {
+      success: true,
+      jsonFileId: jsonUpload.data.id || undefined,
+      jsonUrl: jsonUpload.data.webViewLink || undefined,
+    };
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error(
+      '[Drive] JSON sidecar upload failed:',
       err.message,
       err.stack,
       JSON.stringify(err, Object.getOwnPropertyNames(err))

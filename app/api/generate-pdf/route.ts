@@ -1,25 +1,8 @@
 import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createBriefPDF } from '@/components/BriefPDF';
-import { uploadBriefToDrive } from '@/lib/drive';
+import { uploadBriefToDrive, buildBaseFilename } from '@/lib/drive';
 import type { BriefSchema } from '@/types/brief-schema';
-
-function sanitize(name: string): string {
-  return (name || '')
-    .replace(/[<>:"/\\|?*]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .trim();
-}
-
-function buildBaseFilename(data: BriefSchema, briefTypeName: string): string {
-  const briefType = sanitize(briefTypeName);
-  const company = sanitize(data.companyName || data.projectName || 'Untitled');
-  const date = new Date().toISOString().split('T')[0];
-  const version = data.versionHistory?.[data.versionHistory.length - 1]?.version || 1;
-  return `FMC-Studios_${briefType}_${company}_${date}_v${version}`;
-}
 
 type DriveStatus = 'uploaded' | 'failed' | 'disabled';
 
