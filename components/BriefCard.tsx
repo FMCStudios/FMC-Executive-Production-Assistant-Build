@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { LeadState } from '@/types/brief-schema';
+import type { LeadState, BriefSchema, SCTMode } from '@/types/brief-schema';
+import BriefOutput from './BriefOutput';
+import { brands, brandsList } from '@/lib/brands';
+import { briefTypesList } from '@/lib/briefs';
 
 export type PipelineBrief = {
   date: string;
@@ -242,6 +245,24 @@ function MenuItem({
   );
 }
 
+type SidecarState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ready'; data: BriefSchema; fileUrl: string | null; clientFolderUrl: string | null }
+  | { status: 'error'; message: string; clientFolderUrl: string | null };
+
+function resolveBrand(brandName: string) {
+  const match = brandsList.find(b => b.name.toLowerCase() === (brandName || '').toLowerCase());
+  return match || brands.fmc;
+}
+
+function resolveSctMode(briefTypeName: string): SCTMode {
+  const match = briefTypesList.find(
+    b => b.name.toLowerCase() === (briefTypeName || '').toLowerCase()
+  );
+  return match?.sctMode ?? 'none';
+}
+
 export function BriefDetailModal({
   brief,
   onClose,
@@ -250,6 +271,7 @@ export function BriefDetailModal({
   onClose: () => void;
 }) {
   const isOpen = !!brief;
+  const [sidecar, setSidecar] = useState<SidecarState>({ status: 'idle' });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -265,9 +287,55 @@ export function BriefDetailModal({
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (!brief) {
+      setSidecar({ status: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setSidecar({ status: 'loading' });
+
+    const params = new URLSearchParams({
+      company: brief.company || brief.project || '',
+      briefType: brief.briefType || '',
+      date: brief.date || '',
+    });
+
+    fetch(`/api/brief-sidecar?${params.toString()}`)
+      .then(async res => {
+        const body = await res.json().catch(() => ({} as { data?: unknown; fileUrl?: string | null; clientFolderUrl?: string | null; error?: string }));
+        if (cancelled) return;
+        if (!res.ok || !body?.data) {
+          setSidecar({
+            status: 'error',
+            message: (body?.error as string) || `Sidecar unavailable (${res.status})`,
+            clientFolderUrl: (body?.clientFolderUrl as string | null) ?? null,
+          });
+          return;
+        }
+        setSidecar({
+          status: 'ready',
+          data: body.data as BriefSchema,
+          fileUrl: (body.fileUrl as string | null) ?? null,
+          clientFolderUrl: (body.clientFolderUrl as string | null) ?? null,
+        });
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setSidecar({
+          status: 'error',
+          message: err instanceof Error ? err.message : 'Sidecar fetch failed',
+          clientFolderUrl: null,
+        });
+      });
+
+    return () => { cancelled = true; };
+  }, [brief]);
+
   if (!brief) return null;
   const pill = leadPillStyle(brief.leadState);
   const headline = resolveBriefTitle(brief);
+  const brand = resolveBrand(brief.brand);
 
   return (
     <>
@@ -350,9 +418,61 @@ export function BriefDetailModal({
                 </div>
               )}
 
-              <p className="text-[11px] text-white/30 italic">
-                Full brief JSON lives in Drive under the company folder. Open the sidecar there for the complete render.
-              </p>
+              <div
+                className="pt-4 border-t border-white/[0.06]"
+                style={{ transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+              >
+                <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-fmc-firestarter/80 block mb-3">
+                  Full Brief
+                </span>
+
+                {sidecar.status === 'loading' && (
+                  <div className="space-y-3">
+                    <div className="glass-panel bg-white/[0.04] h-5 w-2/3 rounded-lg animate-pulse" />
+                    <div className="glass-panel bg-white/[0.04] h-4 w-full rounded-lg animate-pulse" />
+                    <div className="glass-panel bg-white/[0.04] h-4 w-5/6 rounded-lg animate-pulse" />
+                    <div className="glass-panel bg-white/[0.04] h-24 w-full rounded-2xl animate-pulse" />
+                    <div className="glass-panel bg-white/[0.04] h-24 w-full rounded-2xl animate-pulse" />
+                  </div>
+                )}
+
+                {sidecar.status === 'error' && (
+                  <div
+                    className="rounded-xl p-4"
+                    style={{ background: 'rgba(180,95,52,0.06)', borderLeft: '3px solid rgba(180,95,52,0.4)' }}
+                  >
+                    <span className="text-[10px] uppercase tracking-[0.15em] text-fmc-copper block mb-2">
+                      Sidecar Unavailable
+                    </span>
+                    <p className="text-xs text-white/70 leading-relaxed mb-3">{sidecar.message}</p>
+                    {sidecar.clientFolderUrl && (
+                      <a
+                        href={sidecar.clientFolderUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium"
+                      >
+                        View on Drive
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M7 17L17 7M7 7h10v10" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {sidecar.status === 'ready' && (
+                  <BriefOutput
+                    data={sidecar.data}
+                    brandId={brand.id}
+                    brandName={brand.name}
+                    brandTagline={brand.tagline}
+                    accentColor={brand.accentColor}
+                    briefTypeName={brief.briefType}
+                    sctMode={resolveSctMode(brief.briefType)}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>
