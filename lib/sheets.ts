@@ -1,6 +1,33 @@
 import { google } from 'googleapis';
 import type { BriefSchema } from '@/types/brief-schema';
 
+// Pipeline tab column order (A through U) — authoritative. The header row in
+// the sheet MUST match this. Drift between the code and the sheet header
+// causes silent column offset bugs. To realign the header, run:
+//   npx tsx scripts/rewrite-sheet-headers.ts
+//
+// A: Date
+// B: Brand
+// C: Brief Type
+// D: Phase
+// E: Operator
+// F: Project
+// G: Client
+// H: Status
+// I: Critical Gaps
+// J: Total Gaps
+// K: Owners
+// L: Budget
+// M: Timeline
+// N: Gaps Detail
+// O: Next Steps Detail
+// P: Description
+// Q: Brief ID
+// R: Operator Email
+// S: Crew On Brief
+// T: Lead State
+// U: Company
+
 // ── Auth ──────────────────────────────────────────────────────
 
 function getAuth() {
