@@ -1,9 +1,20 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
-import BriefGenerator from '@/components/BriefGenerator';
 import { briefTypes } from '@/lib/briefs';
+
+const BriefGenerator = dynamic(() => import('@/components/BriefGenerator'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-4">
+      <div className="glass-panel bg-white/[0.04] h-10 w-1/3 rounded-lg animate-pulse" />
+      <div className="glass-panel bg-white/[0.04] h-48 w-full rounded-2xl animate-pulse" />
+      <div className="glass-panel bg-white/[0.04] h-12 w-40 rounded-xl animate-pulse" />
+    </div>
+  ),
+});
 
 export default function BriefPage({ params }: { params: { type: string } }) {
   const router = useRouter();
