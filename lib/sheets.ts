@@ -125,8 +125,9 @@ export async function writeBriefToSheet(input: BriefSheetData): Promise<{
   try {
     const result = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Pipeline!A:U',
+      range: 'Pipeline!A1',
       valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [row] },
     });
 
