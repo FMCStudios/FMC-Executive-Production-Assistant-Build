@@ -1,10 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import type { LeadState, BriefSchema, SCTMode } from '@/types/brief-schema';
-import BriefOutput from './BriefOutput';
 import { brands, brandsList } from '@/lib/brands';
 import { briefTypesList } from '@/lib/briefs';
+
+const BriefOutput = dynamic(() => import('./BriefOutput'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-3">
+      <div className="glass-panel bg-white/[0.04] h-5 w-2/3 rounded-lg animate-pulse" />
+      <div className="glass-panel bg-white/[0.04] h-24 w-full rounded-2xl animate-pulse" />
+    </div>
+  ),
+});
 
 export type PipelineBrief = {
   date: string;
