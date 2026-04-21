@@ -132,6 +132,83 @@ Glossary sheet tab. Brett/Corey can edit the sheet directly going forward.
 Every change gets its own commit with a descriptive message.
 Always: git add -A && git commit -m "message" && git push origin main
 
+## Environment & Credentials
+
+### OAuth Architecture — Two Pairs, One Web Client
+
+EPA uses ONE Google Web OAuth Client for TWO purposes. Both pairs must stay in sync or auth breaks.
+
+- NextAuth sign-in uses: `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET`
+- Drive sidecar uploads use: `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` + `GOOGLE_OAUTH_REFRESH_TOKEN`
+
+`AUTH_GOOGLE_ID` === `GOOGLE_OAUTH_CLIENT_ID` — same Client ID.
+`AUTH_GOOGLE_SECRET` === `GOOGLE_OAUTH_CLIENT_SECRET` — same Client Secret.
+
+When rotating the client secret:
+1. Generate new secret in Google Cloud Console → delete old
+2. Update BOTH `AUTH_GOOGLE_SECRET` and `GOOGLE_OAUTH_CLIENT_SECRET` on Vercel
+3. Regenerate `GOOGLE_OAUTH_REFRESH_TOKEN` via OAuth Playground (old refresh token is bound to dead secret)
+4. Redeploy
+
+### Service Account — Separate System
+
+`GOOGLE_SHEETS_CLIENT_EMAIL` + `GOOGLE_SHEETS_PRIVATE_KEY` is a service account, not OAuth. Rotation independent.
+
+- Service account: `epa-admin@fmc-epa.iam.gserviceaccount.com`
+- Must have Editor permission on the Pipeline spreadsheet
+- Private key rotation: Google Cloud → Service Accounts → Keys → Add Key (JSON) → download → paste `private_key` value into Vercel → delete old key
+
+### All Current Env Vars (Vercel scoped to All Environments unless noted)
+AUTH_GOOGLE_ID                    — OAuth Client ID (shared with GOOGLE_OAUTH_CLIENT_ID)
+AUTH_GOOGLE_SECRET                — OAuth Client Secret (shared with GOOGLE_OAUTH_CLIENT_SECRET)
+AUTH_SECRET                       — NextAuth JWT signing secret (openssl rand -base64 32)
+NEXTAUTH_URL                      — https://fmc-epa.vercel.app
+GOOGLE_OAUTH_CLIENT_ID            — Drive OAuth (same as AUTH_GOOGLE_ID)
+GOOGLE_OAUTH_CLIENT_SECRET        — Drive OAuth (same as AUTH_GOOGLE_SECRET)
+GOOGLE_OAUTH_REFRESH_TOKEN        — Drive OAuth refresh token
+GOOGLE_DRIVE_PARENT_FOLDER_ID     — Drive folder where sidecars land
+GOOGLE_SHEETS_CLIENT_EMAIL        — Service account email
+GOOGLE_SHEETS_PRIVATE_KEY         — Service account private key (with \n escapes)
+GOOGLE_SHEETS_SPREADSHEET_ID      — EPA Data spreadsheet ID
+ANTHROPIC_API_KEY                 — Sonnet-4 brief generation
+RESEND_API_KEY                    — transactional email
+CREW_INVITE_CODE                  — roster access gate
+ADMIN_EMAIL                       — admin contact
+NEXT_PUBLIC_BASE_URL              — public URL (Production only)
+
+### Secret Hygiene — Non-Negotiable
+
+- NEVER paste `.env.local` contents, `tail` output, or env var VALUES into chat — even redacted
+- Structure and variable NAMES are fine. VALUES are not
+- If Vercel flags an env var with "Need To Rotate" — rotate it
+- Screenshots of terminal output showing env vars count as leakage — rotate anything visible
+
+## Google Sheets Write Rules
+
+### Append Target — Always A1 with INSERT_ROWS
+
+Never use `range: 'Pipeline!A:U'` for append calls. Google's API drifts writes to phantom "used range" past column U when stray data/formatting exists beyond the intended columns.
+
+Always:
+```typescript
+await sheets.spreadsheets.values.append({
+  spreadsheetId,
+  range: 'Pipeline!A1',                    // anchor to A1
+  valueInputOption: 'USER_ENTERED',
+  insertDataOption: 'INSERT_ROWS',         // forces row insertion
+  requestBody: { values: [row] },
+});
+```
+
+### Dynamic Route Requirement
+
+Any Next 14 route handler that hits Google Sheets or Drive at request time MUST include:
+```typescript
+export const dynamic = 'force-dynamic';
+```
+
+Without it, Next caches the first response at build time and serves stale data forever. Applies to: `/api/briefs`, `/api/crew`, `/api/gear`, `/api/sheets`, anything else touching live external data.
+
 ## Do Not Break
 
 - PDF generation pipeline (@react-pdf/renderer, html2pdf, API routes)
